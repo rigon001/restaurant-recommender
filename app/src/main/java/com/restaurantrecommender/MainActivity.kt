@@ -393,19 +393,26 @@ fun RestaurantCard(restaurant: Restaurant) {
                 // Track the clicked restaurant
                 userPreferences.addClickedRestaurant(restaurant.name)
 
+                // GoogleMaps implementation
                 // Create a Uri from an intent string. Use the result to create an Intent.
-                val gmmIntentUri = Uri.parse("geo:0,0?q=${Uri.encode(restaurant.address)}")
-
-                // Create an Intent from gmmIntentUri. Set the action to ACTION_VIEW
-                val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-
-                // Make the Intent explicit by setting the Google Maps package
-                mapIntent.setPackage("com.google.android.apps.maps")
-
-                // Attempt to start an activity that can handle the Intent
-                if (mapIntent.resolveActivity(context.packageManager) != null) {
-                    context.startActivity(mapIntent)
+//                val gmmIntentUri = Uri.parse("geo:0,0?q=${Uri.encode(restaurant.address)}")
+//
+//                // Create an Intent from gmmIntentUri. Set the action to ACTION_VIEW
+//                val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+//
+//                // Make the Intent explicit by setting the Google Maps package
+//                mapIntent.setPackage("com.google.android.apps.maps")
+//
+//                // Attempt to start an activity that can handle the Intent
+//                if (mapIntent.resolveActivity(context.packageManager) != null) {
+//                    context.startActivity(mapIntent)
+//                }
+                // OpenMaps implementation
+                val intent = Intent(context, OpenMapActivity::class.java).apply {
+                    putExtra("name", restaurant.name)
+                    putExtra("address", restaurant.address)
                 }
+                context.startActivity(intent)
             },
         color = MaterialTheme.colorScheme.surface
     ) {

@@ -66,6 +66,7 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.0.1")
     implementation(libs.androidx.appcompat)
     implementation("com.google.android.material:material:1.9.0")
+    implementation("org.osmdroid:osmdroid-android:6.1.15")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
