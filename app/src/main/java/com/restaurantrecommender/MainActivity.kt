@@ -66,6 +66,8 @@ import java.io.InputStreamReader
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -270,7 +272,31 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.height(16.dp)) // Add some space between title and greeting
+            Spacer(modifier = Modifier.height(30.dp)) // Add some space between title and greeting
+
+            // OpenMaps integration start
+//            Box(modifier = Modifier.weight(1f)) {
+//                if (searchResults.isNotEmpty()) {
+//                    OpenStreetMapView(restaurants = searchResults)
+//                } else {
+//                    Text(
+//                        "Explore restaurants on the map!",
+//                        color = MaterialTheme.colorScheme.onPrimary,
+//                        style = TextStyle(fontSize = 16.sp)
+//                    )
+//                }
+//            }
+            // Map Section
+            Box(
+                modifier = Modifier
+//                    .fillMaxWidth()
+                    .weight(0.3f) // Proportional height: 30% of the screen height
+            ) {
+                OpenStreetMapView(restaurants = searchResults)
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            // Map integration ended
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(
@@ -495,6 +521,53 @@ fun ContentWithTitlePreview() {
         ContentWithTitle(modifier = Modifier, resources = resources, cities = cities)
     }
 }
+
+@Composable
+fun OpenStreetMapView(restaurants: List<Restaurant>) {
+    AndroidView(
+        factory = { context ->
+            // Initialize the MapView
+            val mapView = org.osmdroid.views.MapView(context).apply {
+                setMultiTouchControls(true) // Enable gestures
+                controller.setZoom(12.0)   // Default zoom level
+            }
+
+            // Set initial map position (default location)
+            val defaultPoint = org.osmdroid.util.GeoPoint(37.7749, -122.4194) // Example: San Francisco
+            mapView.controller.setCenter(defaultPoint)
+
+            // Add restaurant markers if available
+            if (restaurants.isNotEmpty()) {
+                restaurants.forEach { restaurant ->
+                    val marker = org.osmdroid.views.overlay.Marker(mapView).apply {
+                        position = org.osmdroid.util.GeoPoint(restaurant.latitude, restaurant.longitude)
+                        title = restaurant.name
+                        snippet = "${restaurant.address}, ${restaurant.city}, ${restaurant.country}"
+                        setOnMarkerClickListener { _, _ ->
+                            Log.d("OpenStreetMap", "Clicked on: ${restaurant.name}")
+                            true
+                        }
+                    }
+                    mapView.overlays.add(marker)
+                }
+            } else {
+                // Add a default marker to show the default location
+                val defaultMarker = org.osmdroid.views.overlay.Marker(mapView).apply {
+                    position = defaultPoint
+                    title = "Default Location"
+                    snippet = "San Francisco, CA"
+                }
+                mapView.overlays.add(defaultMarker)
+            }
+            mapView
+        },
+        modifier = Modifier
+//            .fillMaxSize()
+            .height(60.dp)
+            .padding(8.dp)
+    )
+}
+
 
 @Throws(Exception::class)
 private fun readCitiesFromCsv(resources: Resources): List<String> {
