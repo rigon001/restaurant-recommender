@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Leaflet Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet.markercluster CSS from CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <!-- leaflet-control-geocoder CSS from CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <!-- Leaflet Routing Machine CSS from CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <style>
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet.markercluster JavaScript from CDN -->
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+<!-- leaflet-control-geocoder JavaScript from CDN -->
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<!-- Leaflet Routing Machine JavaScript from CDN -->
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+<script>
+    // Initialize the map
+    var map = L.map('map').setView([46.0569, 14.5058], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Initialize the LayerGroup globally so it can be accessed across function calls
+    var markersLayerGroup = L.layerGroup().addTo(map);
+
+    // Add geocoder control
+    L.Control.geocoder().addTo(map)
+
+    // Variable to store the current routing control
+    var currentRoutingControl = null;
+
+    // Function to geocode an address and add a marker
+    function addMarkers(restaurants) {
+        // Clear existing markers
+        markersLayerGroup.clearLayers();
+
+        // Clear previous route when new markers are added
+        clearRoute();
+
+        // Create a new marker cluster group
+        var markers = L.markerClusterGroup();
+
+        // Collect all addresses for batch geocoding
+        var addresses = restaurants.map(restaurant => restaurant.address);
+
+        restaurants.forEach(function(restaurant) {
+            // Construct the Nominatim API URL for geocoding
+            var geocodeUrl = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(restaurant.address);
+
+            // Fetch the geocoded data
+            fetch(geocodeUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        // Extract latitude and longitude from the geocoding response
+                        var lat = parseFloat(data[0].lat);
+                        var lon = parseFloat(data[0].lon);
+
+                        // Add a marker to the map at the geocoded location
+                        var marker = L.marker([lat, lon]);
+                        marker.bindPopup('<b>' + restaurant.name + '</b><br>' + restaurant.address
+                        +'<br><button onclick="showDirections(' + lat + ', ' + lon + ')">Directions</button>');
+                        markers.addLayer(marker);
+                    } else {
+                        console.error('Geocoding failed: No results found for address ' + restaurant.address);
+                    }
+                })
+                .catch(error => {
+                    console.error('Geocoding error for address ' + restaurant.address + ':', error);
+                });
+        });
+        // Add the cluster group to the map
+        map.addLayer(markers);
+        markersLayerGroup = markers;
+    }
+
+    // Function to show directions
+    function showDirections(lat, lon) {
+        // Clear previous route
+        clearRoute();
+
+        // Get stored location from Android using WebAppInterface
+        var storedLatitude = 46.056946 //Android.getLatitude();
+        var storedLongitude = 14.505751 //Android.getLongitude();
+
+        if (storedLatitude && storedLongitude) {
+            var startLat = parseFloat(storedLatitude);
+            var startLon = parseFloat(storedLongitude);
+
+            // Create a routing control
+            currentRoutingControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(startLat, startLon),
+                    L.latLng(lat, lon)
+                ],
+                routeWhileDragging: true
+            }).addTo(map);
+        } else {
+            alert('Could not get your stored location.');
+            console.log('Could not get your stored location.');
+        }
+    }
+
+    // Function to clear the current route
+    function clearRoute() {
+        if (currentRoutingControl) {
+            map.removeControl(currentRoutingControl);
+            currentRoutingControl = null;
+        }
+    }
+
+</script>
+</body>
+</html>

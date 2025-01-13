@@ -8,6 +8,8 @@ import android.content.res.Resources
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.webkit.WebSettings
+import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -65,12 +67,16 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import android.Manifest
 import android.content.pm.PackageManager
+import android.view.ViewGroup
+import android.webkit.WebViewClient
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.google.gson.Gson
 
 
 // Define a data class for Restaurant
@@ -93,16 +99,24 @@ data class RecommendationResponse(
 
 class MainActivity : ComponentActivity() {
 
-    private val LOCATION_PERMISSION_REQUEST_CODE = 1
+    private val LOCATION_PERMISSION_REQUEST_CODE = 123
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     // List of cities loaded from CSV file
     private var cities by mutableStateOf<List<String>>(emptyList())
+    private lateinit var webView: WebView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        // Initialize the WebView
+        webView = WebView(this).apply {
+            settings.javaScriptEnabled = true
+            webViewClient = WebViewClient()
+            loadUrl("file:///android_asset/map.html")
+        }
 
         enableEdgeToEdge()
         setContent {
@@ -118,7 +132,8 @@ class MainActivity : ComponentActivity() {
                     ContentWithTitle(
                         modifier = Modifier.padding(innerPadding),
                         resources = resources,
-                        cities = cities
+                        cities = cities,
+                        webView = webView
                     )
                 }
             }
@@ -167,6 +182,8 @@ class MainActivity : ComponentActivity() {
                         val userPreferences = UserPreferences(this)
                         userPreferences.latitude = latitude.toString()
                         userPreferences.longitude = longitude.toString()
+                        // Load the HTML file after location is available
+                        setupWebView()
                     } else {
                         Log.d("Location", "Location is null")
                     }
@@ -178,11 +195,16 @@ class MainActivity : ComponentActivity() {
             Log.d("Location", "Location permission not granted")
         }
     }
+    private fun setupWebView() {
+        val webAppInterface = WebAppInterface(this)
+        webView.addJavascriptInterface(webAppInterface, "Android")
+        webView.loadUrl("file:///android_asset/map.html")
+    }
 
 }
 
 @Composable
-fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities: List<String>) {
+fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities: List<String>, webView: WebView) {
     val context = LocalContext.current
     val userPreferences = remember { UserPreferences(context) }
 
@@ -241,7 +263,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                     } else {
                         searchResults = restaurants
                         Log.d("Search", "API call successful. Received ${searchResults.size} results.")
-
+                        loadMapWithMarkers(webView, searchResults)
                         // Save search query and top 5 restaurant names
                         userPreferences.addSearchQuery(query)
                         val topRestaurants = restaurants.take(5).map { it.name }
@@ -289,10 +311,12 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
             // Map Section
             Box(
                 modifier = Modifier
-//                    .fillMaxWidth()
-                    .weight(0.3f) // Proportional height: 30% of the screen height
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.35f)
+//                    .weight(0.001f) // Proportional height: 30% of the screen height
             ) {
-                OpenStreetMapView(restaurants = searchResults)
+//                OpenStreetMapView(restaurants = searchResults)
+                LocalWebView(webView = webView)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -512,14 +536,43 @@ fun truncateReviews(reviews: String, maxLength: Int = 400): String {
     }
 }
 
-@Preview(showBackground = true)
+fun loadMapWithMarkers(webView: WebView, restaurants: List<Restaurant>) {
+    // Convert the list of restaurants to JSON
+    val restaurantsJson = Gson().toJson(restaurants.take(10)) // Take the first 10 restaurants
+
+    // Inject JavaScript to add markers
+    webView.evaluateJavascript("addMarkers($restaurantsJson);", null)
+}
+
+
+
+//@Preview(showBackground = true)
+//@Composable
+//fun ContentWithTitlePreview() {
+//    val resources = Resources.getSystem()
+//    val cities = remember { readCitiesFromCsv(resources) }
+//    RestaurantRecommenderTheme {
+//        ContentWithTitle(modifier = Modifier, resources = resources, cities = cities)
+//    }
+//}
 @Composable
-fun ContentWithTitlePreview() {
-    val resources = Resources.getSystem()
-    val cities = remember { readCitiesFromCsv(resources) }
-    RestaurantRecommenderTheme {
-        ContentWithTitle(modifier = Modifier, resources = resources, cities = cities)
-    }
+fun LocalWebView(webView: WebView) {
+    AndroidView(factory = { context ->
+        webView.apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            // Enable JavaScript if needed
+            settings.javaScriptEnabled = true
+
+            // Set a WebViewClient to handle loading
+            webViewClient = WebViewClient()
+
+            // Load the local HTML file from the assets folder
+            loadUrl("file:///android_asset/map.html")
+        }
+    })
 }
 
 @Composable
