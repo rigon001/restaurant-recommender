@@ -77,6 +77,10 @@ import android.widget.FrameLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -416,49 +420,60 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp)) // Add some space after radio buttons
+            Spacer(modifier = Modifier.height(10.dp)) // Add some space after radio buttons
             // Search box
-
-            TextField(
-                value = searchQuery,
-                onValueChange = { newQuery ->
-                    searchQuery = newQuery
-                    hasSearched=false},
-                placeholder = { Text("Search for a restaurant") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(
-                    onDone = { // No need for explicit cast
+            // Search box and button in one row
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ){
+                TextField(
+                    value = searchQuery,
+                    onValueChange = { newQuery ->
+                        searchQuery = newQuery
+                        hasSearched=false},
+                    placeholder = { Text("Search for a restaurant") },
+                    modifier = Modifier
+                        .weight(1f) // Ensures the TextField takes available space
+                        .padding(end = 8.dp), // Adds spacing between TextField and Button,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = { // No need for explicit cast
+                            coroutineScope.launch {
+                                searchRestaurants(
+                                    selectedOption,
+                                    searchQuery,
+                                    if (selectedOption == "Similar Restaurants Search") selectedCity else null
+                                )
+                                delay(500) // Delay for 0.5 seconds (500 milliseconds)
+                                keyboardController?.hide()
+                            }
+                        }
+                    )
+                )
+                IconButton(
+                    onClick = {
+                        userPreferences.userId = userId
+                        userPreferences.city = selectedCity
                         coroutineScope.launch {
-                            searchRestaurants(
-                                selectedOption,
-                                searchQuery,
-                                if (selectedOption == "Similar Restaurants Search") selectedCity else null
-                            )
+                            searchRestaurants(selectedOption, searchQuery,
+                                if (selectedOption == "Similar Restaurants Search") selectedCity
+                                else null)
                             delay(500) // Delay for 0.5 seconds (500 milliseconds)
                             keyboardController?.hide()
                         }
-                    }
-                )
-            )
-            Spacer(modifier = Modifier.height(16.dp)) // Add space after search box
-            Button(
-                onClick = {
-                    userPreferences.userId = userId
-                    userPreferences.city = selectedCity
-                    coroutineScope.launch {
-                        searchRestaurants(selectedOption, searchQuery,
-                            if (selectedOption == "Similar Restaurants Search") selectedCity
-                            else null)
-                        delay(500) // Delay for 0.5 seconds (500 milliseconds)
-                        keyboardController?.hide()
-                    }
-                          },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-            ) {
-                Text(text = "Search")
+                    },
+                    modifier = Modifier.align(Alignment.CenterVertically)
+//                        .fillMaxWidth()
+//                        .padding(top = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search, // Default search icon from Material Design
+                        contentDescription = "Search",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+//                    Text(text = "Search")
+                }
             }
             Spacer(modifier = Modifier.height(16.dp)) // Add space after button
             // Show filtered restaurants only if searchQuery is not empty
