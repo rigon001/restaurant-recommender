@@ -67,8 +67,13 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import android.Manifest
 import android.content.pm.PackageManager
+import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -114,9 +119,11 @@ class MainActivity : ComponentActivity() {
         // Initialize the WebView
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
             webViewClient = WebViewClient()
-            loadUrl("file:///android_asset/map.html")
+//            loadUrl("file:///android_asset/map.html")
         }
+        setupWebView()
 
         enableEdgeToEdge()
         setContent {
@@ -198,6 +205,52 @@ class MainActivity : ComponentActivity() {
     private fun setupWebView() {
         val webAppInterface = WebAppInterface(this)
         webView.addJavascriptInterface(webAppInterface, "Android")
+
+        webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+
+        // Enable fullscreen functionality
+        webView.webChromeClient = object : WebChromeClient() {
+            private var customView: View? = null
+            private var fullscreenCallback: CustomViewCallback? = null
+            override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+                customView = view
+                fullscreenCallback = callback
+
+                // Add the view to the activity
+                (window.decorView as FrameLayout).addView(view)
+                window.decorView.systemUiVisibility = (
+                        View.SYSTEM_UI_FLAG_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        )
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+
+            override fun onHideCustomView() {
+                // Remove the custom view
+                customView?.let {
+                    (window.decorView as FrameLayout).removeView(it)
+                    customView = null
+                    fullscreenCallback = null
+                }
+                // Revert UI flags
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+
+            override fun onConsoleMessage(message: ConsoleMessage?): Boolean {
+                Log.d("WebView", "Console Message: ${message?.message()}")
+                return super.onConsoleMessage(message)
+            }
+        }
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                return false // Ensure navigation stays within the WebView
+            }
+        }
+
         webView.loadUrl("file:///android_asset/map.html")
     }
 
@@ -421,7 +474,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                 } else {
                     LazyColumn {
                         items(results) { restaurant ->
-                            RestaurantCard(restaurant = restaurant)
+                            RestaurantCard(restaurant = restaurant, webView = webView)
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
@@ -432,7 +485,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
 }
 
 @Composable
-fun RestaurantCard(restaurant: Restaurant) {
+fun RestaurantCard(restaurant: Restaurant,  webView: WebView) {
     val context = LocalContext.current
     val userPreferences = UserPreferences(context)  // Access UserPreferences here
 
@@ -458,11 +511,50 @@ fun RestaurantCard(restaurant: Restaurant) {
 //                    context.startActivity(mapIntent)
 //                }
                 // OpenMaps implementation
-                val intent = Intent(context, OpenMapActivity::class.java).apply {
-                    putExtra("name", restaurant.name)
-                    putExtra("address", restaurant.address)
+//                val intent = Intent(context, OpenMapActivity::class.java).apply {
+//                    putExtra("name", restaurant.name)
+//                    putExtra("address", restaurant.address)
+//                }
+//                context.startActivity(intent)
+
+                // Trigger the marker click in the WebView
+                webView.evaluateJavascript(
+                    """
+                (function() {
+                    if (typeof markersLayerGroup === 'undefined') {
+                        console.log('markersLayerGroup is undefined.');
+                        return null;
+                    }
+            
+                    var markers = markersLayerGroup.getLayers();
+                    console.log('Markers count:', markers.length);
+            
+                    for (var i = 0; i < markers.length; i++) {
+                        console.log('Marker popup content:', markers[i].getPopup().getContent());
+                        if (markers[i].getPopup().getContent().includes("${restaurant.address}")) {
+                            console.log('Found matching marker for address:', "${restaurant.address}");
+                            
+                            // Smoothly pan to the marker
+                            map.flyTo(markers[i].getLatLng(), 16, {
+                                animate: true,
+                                duration: 1.5
+                            });
+            
+                            // Open the marker's popup
+                            setTimeout(() => {
+                                markers[i].openPopup();
+                            }, 1600); // Delay matches the duration of flyTo (1.6 seconds = 1600 ms)
+                            return 'success';
+                        }
+                    }
+            
+                    console.log('No marker found for address:', "${restaurant.address}");
+                    return null;
+                })();
+                """.trimIndent()
+                ) { result ->
+                    Log.d("WebView", "Marker click triggered: $result")
                 }
-                context.startActivity(intent)
             },
         color = MaterialTheme.colorScheme.surface
     ) {
