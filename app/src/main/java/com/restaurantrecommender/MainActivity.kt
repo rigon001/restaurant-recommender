@@ -421,7 +421,6 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                 }
             }
             Spacer(modifier = Modifier.height(10.dp)) // Add some space after radio buttons
-            // Search box
             // Search box and button in one row
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -464,15 +463,12 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                         }
                     },
                     modifier = Modifier.align(Alignment.CenterVertically)
-//                        .fillMaxWidth()
-//                        .padding(top = 8.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search, // Default search icon from Material Design
                         contentDescription = "Search",
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
-//                    Text(text = "Search")
                 }
             }
             Spacer(modifier = Modifier.height(16.dp)) // Add space after button
