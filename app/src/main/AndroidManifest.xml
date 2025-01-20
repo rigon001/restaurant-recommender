@@ -21,6 +21,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.RestaurantRecommender"
         tools:targetApi="31">
+
         <activity
             android:name="com.restaurantrecommender.MainActivity"
             android:exported="true"
@@ -44,6 +45,10 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyDl9CzaClxzuAVPqx2oY4pArvDeoxY6zZ4"/>
+
     </application>
 
+
+
 </manifest>
+

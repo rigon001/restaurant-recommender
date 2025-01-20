@@ -19,6 +19,16 @@ class UserPreferences(context: Context) {
         private const val KEY_SEARCH_QUERY = "search_query"
         private const val KEY_TOP_RESTAURANTS = "top_restaurants"
         private const val KEY_CLICKED_RESTAURANTS = "clicked_restaurants"
+        private const val KEY_CLICKED_RESTAURANT_STYLES = "clicked_restaurant_styles"
+        private const val KEY_CLICKED_RESTAURANT_PRICES = "clicked_restaurant_prices"
+        private const val KEY_CLICKED_RESTAURANT_MEALS = "clicked_restaurant_meals"
+        private const val KEY_CLICKED_RESTAURANT_FEATURES = "clicked_restaurant_features"
+        private const val KEY_CLICKED_RESTAURANT_RATINGS = "clicked_restaurant_ratings"
+        private const val KEY_USER_STYLES = "user_styles"
+        private const val KEY_USER_PRICES = "user_prices"
+        private const val KEY_USER_MEALS = "user_meals"
+        private const val KEY_USER_FEATURES = "user_features"
+        private const val KEY_USER_RATINGS = "user_ratings"
         private const val MAX_ITEMS = 100
     }
 
@@ -34,12 +44,126 @@ class UserPreferences(context: Context) {
             sharedPreferences.edit().putString(KEY_CLICKED_RESTAURANTS, json).apply()
         }
 
-    // Function to add a restaurant to the list of clicked restaurants
-    fun addClickedRestaurant(restaurantName: String) {
-        val currentList = clickedRestaurants.toMutableList()
-        currentList.add(restaurantName)
-        clickedRestaurants = currentList
-    }
+    // Property for price
+    var restaurantStyles: List<String>
+        get() {
+            val json = sharedPreferences.getString(KEY_CLICKED_RESTAURANT_STYLES, null)
+            val type = object : TypeToken<List<String>>() {}.type
+            return gson.fromJson(json, type) ?: emptyList()
+        }
+        set(value) {
+            val updatedList = manageListSize(value)
+            val json = gson.toJson(updatedList)
+            sharedPreferences.edit().putString(KEY_CLICKED_RESTAURANT_STYLES, json).apply()
+        }
+    // Property for price
+    var restaurantPrices: List<String>
+        get() {
+            val json = sharedPreferences.getString(KEY_CLICKED_RESTAURANT_PRICES, null)
+            val type = object : TypeToken<List<String>>() {}.type
+            return gson.fromJson(json, type) ?: emptyList()
+        }
+        set(value) {
+            val updatedList = manageListSize(value)
+            val json = gson.toJson(updatedList)
+            sharedPreferences.edit().putString(KEY_CLICKED_RESTAURANT_PRICES, json).apply()
+        }
+
+    var restaurantMeals: List<String>
+        get() {
+            val json = sharedPreferences.getString(KEY_CLICKED_RESTAURANT_MEALS, null)
+            val type = object : TypeToken<List<String>>() {}.type
+            return gson.fromJson(json, type) ?: emptyList()
+        }
+        set(value) {
+            val updatedList = manageListSize(value)
+            val json = gson.toJson(updatedList)
+            sharedPreferences.edit().putString(KEY_CLICKED_RESTAURANT_MEALS, json).apply()
+        }
+    var restaurantFeatures: List<String>
+        get() {
+            val json = sharedPreferences.getString(KEY_CLICKED_RESTAURANT_FEATURES, null)
+            val type = object : TypeToken<List<String>>() {}.type
+            return gson.fromJson(json, type) ?: emptyList()
+        }
+        set(value) {
+            val updatedList = manageListSize(value)
+            val json = gson.toJson(updatedList)
+            sharedPreferences.edit().putString(KEY_CLICKED_RESTAURANT_FEATURES, json).apply()
+        }
+
+    var restaurantRatings: List<String>
+        get() {
+            val json = sharedPreferences.getString(KEY_CLICKED_RESTAURANT_RATINGS, null)
+            val type = object : TypeToken<List<String>>() {}.type
+            return gson.fromJson(json, type) ?: emptyList()
+        }
+        set(value) {
+            val updatedList = manageListSize(value)
+            val json = gson.toJson(updatedList)
+            sharedPreferences.edit().putString(KEY_CLICKED_RESTAURANT_RATINGS, json).apply()
+        }
+
+    // Property for price
+    var userPrice: List<String>
+        get() {
+            val json = sharedPreferences.getString(KEY_USER_PRICES, null)
+            val type = object : TypeToken<List<String>>() {}.type
+            return gson.fromJson(json, type) ?: emptyList()
+        }
+        set(value) {
+            val updatedList = manageListSize(value)
+            val json = gson.toJson(updatedList)
+            sharedPreferences.edit().putString(KEY_USER_PRICES, json).apply()
+        }
+
+    // Property for style
+    var userStyles: List<String>
+        get() {
+            val json = sharedPreferences.getString(KEY_USER_STYLES, null)
+            val type = object : TypeToken<List<String>>() {}.type
+            return gson.fromJson(json, type) ?: emptyList()
+        }
+        set(value) {
+            val updatedList = manageListSize(value)
+            val json = gson.toJson(updatedList)
+            sharedPreferences.edit().putString(KEY_USER_STYLES, json).apply()
+        }
+
+    var userMeals: List<String>
+        get() {
+            val json = sharedPreferences.getString(KEY_USER_MEALS, null)
+            val type = object : TypeToken<List<String>>() {}.type
+            return gson.fromJson(json, type) ?: emptyList()
+        }
+        set(value) {
+            val updatedList = manageListSize(value)
+            val json = gson.toJson(updatedList)
+            sharedPreferences.edit().putString(KEY_USER_MEALS, json).apply()
+        }
+    var userFeatures: List<String>
+        get() {
+            val json = sharedPreferences.getString(KEY_USER_FEATURES, null)
+            val type = object : TypeToken<List<String>>() {}.type
+            return gson.fromJson(json, type) ?: emptyList()
+        }
+        set(value) {
+            val updatedList = manageListSize(value)
+            val json = gson.toJson(updatedList)
+            sharedPreferences.edit().putString(KEY_USER_FEATURES, json).apply()
+        }
+
+    var userRatings: List<String>
+        get() {
+            val json = sharedPreferences.getString(KEY_USER_RATINGS, null)
+            val type = object : TypeToken<List<String>>() {}.type
+            return gson.fromJson(json, type) ?: emptyList()
+        }
+        set(value) {
+            val updatedList = manageListSize(value)
+            val json = gson.toJson(updatedList)
+            sharedPreferences.edit().putString(KEY_USER_RATINGS, json).apply()
+        }
 
     var userId: String?
         get() {
@@ -88,6 +212,15 @@ class UserPreferences(context: Context) {
         get() = sharedPreferences.getString("longitude", null)
         set(value) = sharedPreferences.edit().putString("longitude", value).apply()
 
+    // Function to add a restaurant to the list of clicked restaurants
+    fun addClickedRestaurant(restaurantName: String) {
+        val currentList = clickedRestaurants.toMutableList()
+        currentList.add(restaurantName)
+        clickedRestaurants = currentList
+    }
+
+
+
     private fun <T> manageListSize(list: List<T>): List<T> {
         return if (list.size > MAX_ITEMS) {
             list.takeLast(MAX_ITEMS)
@@ -106,6 +239,76 @@ class UserPreferences(context: Context) {
         val currentList = topRestaurants.toMutableList()
         currentList.add(restaurants)
         topRestaurants = currentList
+    }
+
+    // Function to add a price entry
+    fun addRestaurantPrice(priceEntry: String) {
+        val currentList = restaurantPrices.toMutableList()
+        currentList.add(priceEntry)
+        restaurantPrices = currentList
+    }
+
+    // Function to add a style entry
+    fun addRestaurantStyle(styleEntry: String) {
+        val currentList = restaurantStyles.toMutableList()
+        currentList.add(styleEntry)
+        restaurantStyles = currentList
+    }
+
+    // Function to add a meals entry
+    fun addRestaurantMeals(priceEntry: String) {
+        val currentList = restaurantMeals.toMutableList()
+        currentList.add(priceEntry)
+        restaurantMeals = currentList
+    }
+
+    // Function to add a features entry
+    fun addRestaurantFeatures(priceEntry: String) {
+        val currentList = restaurantFeatures.toMutableList()
+        currentList.add(priceEntry)
+        restaurantFeatures = currentList
+    }
+
+    // Function to add a ratings entry
+    fun addRestaurantRatings(priceEntry: String) {
+        val currentList = restaurantRatings.toMutableList()
+        currentList.add(priceEntry)
+        userRatings = currentList
+    }
+
+    // Function to add a price entry
+    fun addUserPrice(priceEntry: String) {
+        val currentList = userPrice.toMutableList()
+        currentList.add(priceEntry)
+        userPrice = currentList
+    }
+
+    // Function to add a style entry
+    fun addUserStyle(styleEntry: String) {
+        val currentList = userStyles.toMutableList()
+        currentList.add(styleEntry)
+        userStyles = currentList
+    }
+
+    // Function to add a meals entry
+    fun addUserMeals(priceEntry: String) {
+        val currentList = userMeals.toMutableList()
+        currentList.add(priceEntry)
+        userMeals = currentList
+    }
+
+    // Function to add a features entry
+    fun addUserFeatures(priceEntry: String) {
+        val currentList = userFeatures.toMutableList()
+        currentList.add(priceEntry)
+        userFeatures = currentList
+    }
+
+    // Function to add a ratings entry
+    fun addUserRatings(priceEntry: String) {
+        val currentList = userRatings.toMutableList()
+        currentList.add(priceEntry)
+        userRatings = currentList
     }
 
 }

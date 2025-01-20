@@ -3,20 +3,30 @@ package com.restaurantrecommender
 //import androidx.compose.ui.platform.Surface
 //import android.os.Bundleimport
 
-import android.content.Intent
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.Resources
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import android.webkit.WebSettings
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,15 +35,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -46,14 +59,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.gson.Gson
 import com.restaurantrecommender.network.RetrofitInstance
 import com.restaurantrecommender.ui.theme.RestaurantRecommenderTheme
 import kotlinx.coroutines.Dispatchers
@@ -64,28 +84,9 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import java.io.BufferedReader
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStreamReader
-import android.Manifest
-import android.content.pm.PackageManager
-import android.view.View
-import android.view.ViewGroup
-import android.view.WindowManager
-import android.webkit.ConsoleMessage
-import android.webkit.WebChromeClient
-import android.webkit.WebViewClient
-import android.widget.FrameLayout
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
-import com.google.gson.Gson
 
 
 // Define a data class for Restaurant
@@ -108,7 +109,6 @@ data class RecommendationResponse(
 
 class MainActivity : ComponentActivity() {
 
-    private val LOCATION_PERMISSION_REQUEST_CODE = 123
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     // List of cities loaded from CSV file
@@ -117,6 +117,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Destination path in internal storage
+        val internalModelDir = File(filesDir, "entity_ruler_patterns")
+
+        // Copy the model if not already copied
+        if (!internalModelDir.exists()) {
+            internalModelDir.mkdirs()
+            copyAssetsToInternalStorage(this, "entity_ruler_patterns", internalModelDir)
+        }
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
@@ -287,7 +296,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
     var hasSearched by remember { mutableStateOf(false) }
 
     // Function to make API call
-    fun searchRestaurants(selectedOption: String, query: String, city: String? = null) {
+    fun searchRestaurants(selectedOption: String, query: String, city: String? = null, userPreferences: UserPreferences, context: Context) {
         isLoading = true
         hasSearched = true
 
@@ -303,6 +312,55 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
             "Location Based Search" -> RetrofitInstance.api.getOtherRestaurants(jsonPayload)
             "Similar Restaurants Search" -> RetrofitInstance.api.getRestaurants(jsonPayload)
             else -> throw IllegalArgumentException("Unsupported model: $selectedOption")
+        }
+
+        // Save search query
+        userPreferences.addSearchQuery(query)
+
+        // Initialize Python if not already started
+        if (!Python.isStarted()) {
+            Python.start(AndroidPlatform(context))
+        }
+
+        try {
+            Log.d("PYTHON","EntityRuler creation.")
+            val python = Python.getInstance()
+            val pyModule = python.getModule("spacy_handler") // Use your Python module name
+            pyModule.callAttr("load_entity_ruler") // Call the function
+
+//            val testSentence =
+
+            val entities = pyModule.callAttr("process_sentence", query).asList()
+            for (entity in entities) {
+                val entityText = entity.asList()[0].toString()
+                val entityLabel = entity.asList()[1].toString()
+                Log.d("PYTHON","Entity: $entityText, Label: $entityLabel")
+                // Save the entity to the appropriate user preference based on the label
+                when (entityLabel) {
+                    "CUISINE" -> {
+                        userPreferences.addUserStyle(entityText)
+                    }
+                    "PRICE" -> {
+                        userPreferences.addUserPrice(entityText)
+                    }
+                    "MEALS" -> {
+                        userPreferences.addUserMeals(entityText)
+                    }
+                    "FEATURE" -> {
+                        userPreferences.addUserFeatures(entityText)
+                    }
+                    "RATING" -> {
+                        userPreferences.addUserRatings(entityText)
+                    }
+                    else -> {
+                        Log.d("PYTHON","Unrecognized label: $entityLabel")
+                    }
+                }
+            }
+            Log.d("PYTHON","spacy_handler creation triggered successfully.")
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Log.d("PYTHON","Error triggering EntityRuler creation: ${e.message}")
         }
 
         Log.d("Search", "Making API call with model: $selectedOption, query: $searchQuery")
@@ -321,8 +379,6 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                         searchResults = restaurants
                         Log.d("Search", "API call successful. Received ${searchResults.size} results.")
                         loadMapWithMarkers(webView, searchResults)
-                        // Save search query and top 5 restaurant names
-                        userPreferences.addSearchQuery(query)
                         val topRestaurants = restaurants.take(5).map { it.name }
                         userPreferences.addTopRestaurants(topRestaurants)
                     }
@@ -442,7 +498,9 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                                 searchRestaurants(
                                     selectedOption,
                                     searchQuery,
-                                    if (selectedOption == "Similar Restaurants Search") selectedCity else null
+                                    if (selectedOption == "Similar Restaurants Search") selectedCity else null,
+                                    userPreferences,
+                                    context
                                 )
                                 delay(500) // Delay for 0.5 seconds (500 milliseconds)
                                 keyboardController?.hide()
@@ -457,7 +515,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                         coroutineScope.launch {
                             searchRestaurants(selectedOption, searchQuery,
                                 if (selectedOption == "Similar Restaurants Search") selectedCity
-                                else null)
+                                else null, userPreferences, context)
                             delay(500) // Delay for 0.5 seconds (500 milliseconds)
                             keyboardController?.hide()
                         }
@@ -506,6 +564,8 @@ fun RestaurantCard(restaurant: Restaurant,  webView: WebView) {
             .clickable {
                 // Track the clicked restaurant
                 userPreferences.addClickedRestaurant(restaurant.name)
+                userPreferences.addRestaurantStyle(restaurant.style)
+                userPreferences.addRestaurantPrice(restaurant.price)
 
                 // GoogleMaps implementation
                 // Create a Uri from an intent string. Use the result to create an Intent.
@@ -724,6 +784,28 @@ fun OpenStreetMapView(restaurants: List<Restaurant>) {
     )
 }
 
+fun copyAssetsToInternalStorage(context: Context, assetDir: String, outputDir: File) {
+    val assetManager = context.assets
+    val files = assetManager.list(assetDir) ?: return
+
+    for (file in files) {
+        val assetPath = "$assetDir/$file"
+        val outFile = File(outputDir, file)
+
+        if (assetManager.list(assetPath)?.isNotEmpty() == true) {
+            // Create directories for subfolders
+            outFile.mkdirs()
+            copyAssetsToInternalStorage(context, assetPath, outFile)
+        } else {
+            // Copy file
+            assetManager.open(assetPath).use { input ->
+                FileOutputStream(outFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+        }
+    }
+}
 
 @Throws(Exception::class)
 private fun readCitiesFromCsv(resources: Resources): List<String> {

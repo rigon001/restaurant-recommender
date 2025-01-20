@@ -1,11 +1,27 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
+    id("com.chaquo.python")
 }
+
 
 android {
     namespace = "com.restaurantrecommender"
     compileSdk = 34
+
+    chaquopy {
+        defaultConfig{
+            buildPython("C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python310\\python.exe")
+            pip {
+                install("numpy")
+                install("lxml")
+                install("spacy")
+                install("nltk")
+                install("https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.2.0/en_core_web_sm-2.2.0.tar.gz")
+            }
+        }
+    }
+
 
     defaultConfig {
         applicationId = "com.restaurantrecommender"
@@ -15,6 +31,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            // On Apple silicon, you can omit x86_64.
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+
     }
 
     buildTypes {
@@ -44,7 +65,10 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
 }
+
+
 
 dependencies {
 

@@ -7,8 +7,12 @@ pluginManagement {
                 includeGroupByRegex("androidx.*")
             }
         }
+        maven("https://chaquo.com/maven")
         mavenCentral()
         gradlePluginPortal()
+    }
+    plugins {
+        id("com.chaquo.python") version "16.0.0" // Specify the Chaquopy plugin version
     }
 }
 dependencyResolutionManagement {
@@ -16,6 +20,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url = uri("https://chaquo.com/maven/") }
     }
 }
 
