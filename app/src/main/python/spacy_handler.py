@@ -8,10 +8,10 @@ def load_entity_ruler(entity_ruler_path):
     Load the SpaCy model and attach the EntityRuler from disk.
     """
     try:
-        nlp = spacy.load("en_core_web_sm")
+        nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "lemmatizer", "ner"])
         # Load EntityRuler patterns
         ruler = EntityRuler(nlp).from_disk(entity_ruler_path)
-        nlp.add_pipe(ruler, before="ner")
+        nlp.add_pipe(ruler)
         print("SpaCy model and EntityRuler loaded successfully.")
         return nlp
     except Exception as e:

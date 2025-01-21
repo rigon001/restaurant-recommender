@@ -13,10 +13,10 @@ android {
         defaultConfig{
             buildPython("C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python310\\python.exe")
             pip {
-                install("numpy")
-                install("lxml")
+//                install("numpy")
+//                install("lxml")
                 install("spacy")
-                install("nltk")
+//                install("nltk")
                 install("https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.2.0/en_core_web_sm-2.2.0.tar.gz")
             }
         }

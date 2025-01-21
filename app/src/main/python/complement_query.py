@@ -3,27 +3,6 @@ from spacy.pipeline import EntityRuler
 from collections import defaultdict, Counter
 import json
 
-
-def parse_user_prefs_from_xml(xml_content):
-    """
-    Parse user preferences from XML content.
-
-    :param xml_content: str - XML content as a string.
-    :return: dict - Parsed user preferences as a dictionary.
-    """
-    root = ET.fromstring(xml_content)
-    user_prefs = {}
-    for child in root.findall("string"):
-        key = child.attrib.get("name")
-        value = child.text
-        # Convert JSON-like strings back to Python lists
-        try:
-            user_prefs[key] = json.loads(value.replace("&quot;", '"'))
-        except json.JSONDecodeError:
-            user_prefs[key] = value
-    return user_prefs
-
-
 def analyze_user_context(user_prefs):
     """
     Analyze the user's preferences to find the most dominant terms.
@@ -58,10 +37,10 @@ def load_spacy_model_with_entity_ruler(entity_ruler_path):
     Load the SpaCy model and attach the EntityRuler from disk.
     """
     try:
-        nlp = spacy.load("en_core_web_sm")
+        nlp = spacy.load("en_core_web_sm", disable=["parser", "tagger", "lemmatizer", "ner"])
         # Load EntityRuler patterns
         ruler = EntityRuler(nlp).from_disk(entity_ruler_path)
-        nlp.add_pipe(ruler, before="ner")
+        nlp.add_pipe(ruler)
         print("SpaCy model and EntityRuler loaded successfully.")
         return nlp
     except Exception as e:
