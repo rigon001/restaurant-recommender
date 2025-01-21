@@ -300,20 +300,6 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
         isLoading = true
         hasSearched = true
 
-        // Prepare the JSON payload
-        val jsonPayload = if (selectedOption == "Similar Restaurants Search") {
-            mapOf("input" to query, "city" to (city ?: ""))
-        } else {
-            mapOf("input" to query)
-        }
-        Log.d("Search", "Making API call jsonpayload: $jsonPayload")
-
-        val call = when (selectedOption) {
-            "Location Based Search" -> RetrofitInstance.api.getOtherRestaurants(jsonPayload)
-            "Similar Restaurants Search" -> RetrofitInstance.api.getRestaurants(jsonPayload)
-            else -> throw IllegalArgumentException("Unsupported model: $selectedOption")
-        }
-
         // Save search query
         userPreferences.addSearchQuery(query)
 
@@ -321,16 +307,20 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(context))
         }
+        var enhancedQuery = ""
+        val entityRulerPath = File(context.filesDir, "entity_ruler_patterns").absolutePath
+        Log.d("PYTHON","entityRulerPath: $entityRulerPath")
+
 
         try {
-            Log.d("PYTHON","EntityRuler creation.")
+            Log.d("PYTHON","Spacy creation.")
             val python = Python.getInstance()
             val pyModule = python.getModule("spacy_handler") // Use your Python module name
-            pyModule.callAttr("load_entity_ruler") // Call the function
+//            pyModule.callAttr("load_entity_ruler") // Call the function
 
-//            val testSentence =
-
-            val entities = pyModule.callAttr("process_sentence", query).asList()
+            val entities = pyModule.callAttr("process_sentence",
+                query,
+                entityRulerPath).asList()
             for (entity in entities) {
                 val entityText = entity.asList()[0].toString()
                 val entityLabel = entity.asList()[1].toString()
@@ -363,10 +353,63 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
             Log.d("PYTHON","Error triggering EntityRuler creation: ${e.message}")
         }
 
-        Log.d("Search", "Making API call with model: $selectedOption, query: $searchQuery")
+        // Run enhance_query Python script
+        try {
+
+            // Convert UserPreferences to JSON-like format
+            val userPrefsMap = mapOf(
+                "user_styles" to userPreferences.userStyles,
+                "user_prices" to userPreferences.userPrice,
+                "user_meals" to userPreferences.userMeals,
+                "user_features" to userPreferences.userFeatures,
+                "user_ratings" to userPreferences.userRatings,
+                "restaurant_styles" to userPreferences.restaurantStyles,
+                "restaurant_prices" to userPreferences.restaurantPrices,
+                "restaurant_meals" to userPreferences.restaurantMeals,
+                "restaurant_features" to userPreferences.restaurantFeatures,
+                "restaurant_ratings" to userPreferences.restaurantRatings
+            )
+
+            // Convert the map to a JSON string
+            val userPrefsJson = Gson().toJson(userPrefsMap)
+
+            val py = Python.getInstance()
+            val module = py.getModule("complement_query") // Python script name without .py
+
+            enhancedQuery = module.callAttr(
+                "enhance_query", // Python function to call
+                query,
+                userPrefsJson, // Pass the path to the user_prefs.xml
+                entityRulerPath // EntityRuler path
+            ).toString()
+
+            // Display the enhanced query
+            Log.d("PYTHON","Enhanced Query: $enhancedQuery")
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Log.d("PYTHON","Error triggering query enhancement: ${e.message}")
+        }
+
+        // Prepare the JSON payload
+        val jsonPayload = if (selectedOption == "Similar Restaurants Search") {
+            mapOf("input" to enhancedQuery, "city" to (city ?: ""))
+        } else {
+            mapOf("input" to enhancedQuery)
+        }
+
+        Log.d("Search", "Making API call jsonpayload: $jsonPayload")
+
+        val call = when (selectedOption) {
+            "Location Based Search" -> RetrofitInstance.api.getOtherRestaurants(jsonPayload)
+            "Similar Restaurants Search" -> RetrofitInstance.api.getRestaurants(jsonPayload)
+            else -> throw IllegalArgumentException("Unsupported model: $selectedOption")
+        }
+
+        Log.d("Search", "Making API call with model: $selectedOption, query: $enhancedQuery")
         Log.d("Search", "Making API call jsonpayload: $jsonPayload")
         call.enqueue(object : Callback<RecommendationResponse> {
-            override fun onResponse(call: Call<RecommendationResponse>, response: Response<RecommendationResponse>) {
+            override fun onResponse(call: Call<RecommendationResponse>,
+                                    response: Response<RecommendationResponse>) {
                 isLoading = false
                 if (response.isSuccessful) {
                     val recommendationResponse = response.body()
@@ -377,7 +420,8 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                         Log.d("Search", "No restaurants found.")
                     } else {
                         searchResults = restaurants
-                        Log.d("Search", "API call successful. Received ${searchResults.size} results.")
+                        Log.d("Search", "API call successful. " +
+                                "Received ${searchResults.size} results.")
                         loadMapWithMarkers(webView, searchResults)
                         val topRestaurants = restaurants.take(5).map { it.name }
                         userPreferences.addTopRestaurants(topRestaurants)
@@ -409,31 +453,18 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
             )
             Spacer(modifier = Modifier.height(30.dp)) // Add some space between title and greeting
 
-            // OpenMaps integration start
-//            Box(modifier = Modifier.weight(1f)) {
-//                if (searchResults.isNotEmpty()) {
-//                    OpenStreetMapView(restaurants = searchResults)
-//                } else {
-//                    Text(
-//                        "Explore restaurants on the map!",
-//                        color = MaterialTheme.colorScheme.onPrimary,
-//                        style = TextStyle(fontSize = 16.sp)
-//                    )
-//                }
-//            }
             // Map Section
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.35f)
-//                    .weight(0.001f) // Proportional height: 30% of the screen height
             ) {
-//                OpenStreetMapView(restaurants = searchResults)
                 LocalWebView(webView = webView)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            // Map integration ended
+            // Map Section ended
+
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(
