@@ -294,12 +294,17 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
     val coroutineScope = rememberCoroutineScope()
     // State for search submission
     var hasSearched by remember { mutableStateOf(false) }
+    // State to control WebView visibility
+    var webViewVisible by remember { mutableStateOf(false) }
+
 
     // Function to make API call
     fun searchRestaurants(selectedOption: String, query: String, city: String? = null, userPreferences: UserPreferences, context: Context) {
         isLoading = true
         hasSearched = true
 
+        // Show the map WebView after search
+        webViewVisible = true
         // Save search query
         userPreferences.addSearchQuery(query)
 
@@ -454,12 +459,14 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
             Spacer(modifier = Modifier.height(30.dp)) // Add some space between title and greeting
 
             // Map Section
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.35f)
-            ) {
-                LocalWebView(webView = webView)
+            if (webViewVisible) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.35f)
+                ) {
+                    LocalWebView(webView = webView)
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -722,14 +729,6 @@ fun RestaurantCard(restaurant: Restaurant,  webView: WebView) {
     }
 }
 
-fun truncateReviews(reviews: String, maxLength: Int = 400): String {
-    return if (reviews.length > maxLength) {
-        "${reviews.substring(0, maxLength)}..."
-    } else {
-        reviews
-    }
-}
-
 fun loadMapWithMarkers(webView: WebView, restaurants: List<Restaurant>) {
     // Convert the list of restaurants to JSON
     val restaurantsJson = Gson().toJson(restaurants.take(10)) // Take the first 10 restaurants
@@ -739,16 +738,6 @@ fun loadMapWithMarkers(webView: WebView, restaurants: List<Restaurant>) {
 }
 
 
-
-//@Preview(showBackground = true)
-//@Composable
-//fun ContentWithTitlePreview() {
-//    val resources = Resources.getSystem()
-//    val cities = remember { readCitiesFromCsv(resources) }
-//    RestaurantRecommenderTheme {
-//        ContentWithTitle(modifier = Modifier, resources = resources, cities = cities)
-//    }
-//}
 @Composable
 fun LocalWebView(webView: WebView) {
     AndroidView(factory = { context ->
@@ -767,52 +756,6 @@ fun LocalWebView(webView: WebView) {
             loadUrl("file:///android_asset/map.html")
         }
     })
-}
-
-@Composable
-fun OpenStreetMapView(restaurants: List<Restaurant>) {
-    AndroidView(
-        factory = { context ->
-            // Initialize the MapView
-            val mapView = org.osmdroid.views.MapView(context).apply {
-                setMultiTouchControls(true) // Enable gestures
-                controller.setZoom(12.0)   // Default zoom level
-            }
-
-            // Set initial map position (default location)
-            val defaultPoint = org.osmdroid.util.GeoPoint(37.7749, -122.4194) // Example: San Francisco
-            mapView.controller.setCenter(defaultPoint)
-
-            // Add restaurant markers if available
-            if (restaurants.isNotEmpty()) {
-                restaurants.forEach { restaurant ->
-                    val marker = org.osmdroid.views.overlay.Marker(mapView).apply {
-                        position = org.osmdroid.util.GeoPoint(restaurant.latitude, restaurant.longitude)
-                        title = restaurant.name
-                        snippet = "${restaurant.address}, ${restaurant.city}, ${restaurant.country}"
-                        setOnMarkerClickListener { _, _ ->
-                            Log.d("OpenStreetMap", "Clicked on: ${restaurant.name}")
-                            true
-                        }
-                    }
-                    mapView.overlays.add(marker)
-                }
-            } else {
-                // Add a default marker to show the default location
-                val defaultMarker = org.osmdroid.views.overlay.Marker(mapView).apply {
-                    position = defaultPoint
-                    title = "Default Location"
-                    snippet = "San Francisco, CA"
-                }
-                mapView.overlays.add(defaultMarker)
-            }
-            mapView
-        },
-        modifier = Modifier
-//            .fillMaxSize()
-            .height(60.dp)
-            .padding(8.dp)
-    )
 }
 
 fun copyAssetsToInternalStorage(context: Context, assetDir: String, outputDir: File) {
