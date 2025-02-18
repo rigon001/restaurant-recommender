@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -61,9 +62,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,6 +78,7 @@ import com.chaquo.python.android.AndroidPlatform
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import com.restaurantrecommender.network.RetrofitInstance
 import com.restaurantrecommender.ui.theme.RestaurantRecommenderTheme
 import kotlinx.coroutines.Dispatchers
@@ -103,8 +108,33 @@ data class Restaurant(
     val similarity: Double
 )
 
+data class RestaurantNew(
+    val title: String,
+    val url: String,
+    val textSnippet: String,
+    val address: String,
+    @SerializedName("phone number")
+    val phone: String,
+    val cuisines: List<String>? = null,
+    val meals: List<String>? = null,
+    @SerializedName("price range")
+    val price: String,
+    val features: List<String>? = null,
+    @SerializedName("filtered_reviews")
+    val reviews: List<String>? = null,
+    @SerializedName("geo_lat")
+    val latitude: Double? = null,
+    @SerializedName("geo_long")
+    val longitude: Double? = null,
+    val similarity: Double
+)
+
 data class RecommendationResponse(
     val recommendations: List<Restaurant>
+)
+
+data class RecommendationResponseNew(
+    val recommendations: List<RestaurantNew>
 )
 
 class MainActivity : ComponentActivity() {
@@ -283,6 +313,8 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
 
     // State for search results
     var searchResults by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
+    var searchResultsNew by remember { mutableStateOf<List<RestaurantNew>>(emptyList()) }
+
 
     // State for loading status
     var isLoading by remember { mutableStateOf(false) }
@@ -304,7 +336,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
         hasSearched = true
 
         // Show the map WebView after search
-        webViewVisible = true
+//        webViewVisible = true
         // Save search query
         userPreferences.addSearchQuery(query)
 
@@ -407,42 +439,47 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
         val call = when (selectedOption) {
             "Location Based Search" -> RetrofitInstance.api.getOtherRestaurants(jsonPayload)
             "Similar Restaurants Search" -> RetrofitInstance.api.getRestaurants(jsonPayload)
+            "New API Search" -> RetrofitInstance.api.getRestaurantsNew(jsonPayload) // ✅ New API Call
             else -> throw IllegalArgumentException("Unsupported model: $selectedOption")
         }
 
         Log.d("Search", "Making API call with model: $selectedOption, query: $enhancedQuery")
         Log.d("Search", "Making API call jsonpayload: $jsonPayload")
-        call.enqueue(object : Callback<RecommendationResponse> {
-            override fun onResponse(call: Call<RecommendationResponse>,
-                                    response: Response<RecommendationResponse>) {
-                isLoading = false
-                if (response.isSuccessful) {
-                    val recommendationResponse = response.body()
-                    val restaurants = recommendationResponse?.recommendations ?: emptyList()
-                    if (restaurants.isEmpty()) {
-                        // Handle case where no restaurants are found
-                        searchResults = emptyList()
-                        Log.d("Search", "No restaurants found.")
-                    } else {
-                        searchResults = restaurants
-                        Log.d("Search", "API call successful. " +
-                                "Received ${searchResults.size} results.")
-                        loadMapWithMarkers(webView, searchResults)
-                        val topRestaurants = restaurants.take(5).map { it.name }
-                        userPreferences.addTopRestaurants(topRestaurants)
-                    }
-                } else {
-                    Log.d("Search", "API call unsuccessful. Status code: ${response.code()}")
-                    // Handle unsuccessful response
-                }
-            }
 
-            override fun onFailure(call: Call<RecommendationResponse>, t: Throwable) {
-                isLoading = false
-                Log.d("Search", "API call failed with exception: ${t.message}")
-                // Handle failure
-            }
-        })
+        if (selectedOption == "New API Search") {
+            (call as Call<RecommendationResponseNew>).enqueue(object : Callback<RecommendationResponseNew> {
+                override fun onResponse(call: Call<RecommendationResponseNew>, response: Response<RecommendationResponseNew>) {
+                    isLoading = false
+                    if (response.isSuccessful) {
+                        searchResultsNew = response.body()?.recommendations ?: emptyList()
+                    } else {
+                        Log.d("Search", "New API call failed: ${response.code()}")
+                    }
+                }
+
+                override fun onFailure(call: Call<RecommendationResponseNew>, t: Throwable) {
+                    isLoading = false
+                    Log.e("Search", "New API call error: ${t.message}")
+                }
+            })
+        } else {
+            (call as Call<RecommendationResponse>).enqueue(object : Callback<RecommendationResponse> {
+                override fun onResponse(call: Call<RecommendationResponse>, response: Response<RecommendationResponse>) {
+                    isLoading = false
+                    if (response.isSuccessful) {
+                        searchResults = response.body()?.recommendations ?: emptyList()
+                    } else {
+                        Log.d("Search", "Old API call failed: ${response.code()}")
+                    }
+                }
+
+                override fun onFailure(call: Call<RecommendationResponse>, t: Throwable) {
+                    isLoading = false
+                    Log.e("Search", "Old API call error: ${t.message}")
+                }
+            })
+        }
+
     }
 
 
@@ -491,6 +528,16 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                         modifier = Modifier.padding(start = 8.dp),
                         color = MaterialTheme.colorScheme.onPrimary)
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = selectedOption == "New API Search",
+                        onClick = { selectedOption = "New API Search" }
+                    )
+                    Text(text = "New API Search",
+                        modifier = Modifier.padding(start = 8.dp),
+                        color = MaterialTheme.colorScheme.onPrimary)
+                }
+
                 if (selectedOption == "Similar Restaurants Search") {
                     Button(
                         onClick = { expanded = !expanded },
@@ -569,18 +616,25 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
             }
             Spacer(modifier = Modifier.height(16.dp)) // Add space after button
             // Show filtered restaurants only if searchQuery is not empty
-            searchResults.let { results ->
-                if (isLoading) {
-                    Text(text = "Loading...")
-                } else if (results.isEmpty() && hasSearched) {
-                    // Show results only if searchQuery is not empty
-                    if (searchQuery.isNotEmpty()) {
-                        Text(text = "No restaurants found.",
-                            color = MaterialTheme.colorScheme.error)
+            if (isLoading) {
+                Text(text = "Loading...")
+            } else if (searchResults.isEmpty() && searchResultsNew.isEmpty() && hasSearched) {
+                if (searchQuery.isNotEmpty()) {
+                    Text(text = "No restaurants found.", color = MaterialTheme.colorScheme.error)
+                }
+            } else {
+                LazyColumn {
+                    // Case 1: Display results from the new API (if selected)
+                    if (selectedOption == "New API Search" && searchResultsNew.isNotEmpty()) {
+                        items(searchResultsNew) { restaurantNew ->
+                            RestaurantNewCard(restaurantNew = restaurantNew)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     }
-                } else {
-                    LazyColumn {
-                        items(results) { restaurant ->
+
+                    // Case 2: Display results from the existing API (if selected)
+                    if (selectedOption != "New API Search" && searchResults.isNotEmpty()) {
+                        items(searchResults) { restaurant ->
                             RestaurantCard(restaurant = restaurant, webView = webView)
                             Spacer(modifier = Modifier.height(8.dp))
                         }
@@ -605,26 +659,6 @@ fun RestaurantCard(restaurant: Restaurant,  webView: WebView) {
                 userPreferences.addRestaurantStyle(restaurant.style)
                 userPreferences.addRestaurantPrice(restaurant.price)
 
-                // GoogleMaps implementation
-                // Create a Uri from an intent string. Use the result to create an Intent.
-//                val gmmIntentUri = Uri.parse("geo:0,0?q=${Uri.encode(restaurant.address)}")
-//
-//                // Create an Intent from gmmIntentUri. Set the action to ACTION_VIEW
-//                val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-//
-//                // Make the Intent explicit by setting the Google Maps package
-//                mapIntent.setPackage("com.google.android.apps.maps")
-//
-//                // Attempt to start an activity that can handle the Intent
-//                if (mapIntent.resolveActivity(context.packageManager) != null) {
-//                    context.startActivity(mapIntent)
-//                }
-                // OpenMaps implementation
-//                val intent = Intent(context, OpenMapActivity::class.java).apply {
-//                    putExtra("name", restaurant.name)
-//                    putExtra("address", restaurant.address)
-//                }
-//                context.startActivity(intent)
 
                 // Trigger the marker click in the WebView
                 webView.evaluateJavascript(
@@ -725,6 +759,161 @@ fun RestaurantCard(restaurant: Restaurant,  webView: WebView) {
                     style = TextStyle(fontSize = 16.sp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun RestaurantNewCard(restaurantNew: RestaurantNew) {
+    val uriHandler = LocalUriHandler.current
+    Card(
+        modifier = Modifier.padding(16.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = restaurantNew.title,
+                style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Snippet: ${restaurantNew.textSnippet}",
+                style = TextStyle(fontSize = 16.sp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            // Clickable URL
+            ClickableText(
+                text = AnnotatedString(restaurantNew.url),
+                style = TextStyle(
+                    fontSize = 16.sp,
+                    color = Color.Blue, // Makes it look like a link
+                    textDecoration = TextDecoration.Underline
+                ),
+                onClick = {
+                    uriHandler.openUri(restaurantNew.url) // Open URL in a browser
+                }
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Address: ${restaurantNew.address}",
+                style = TextStyle(fontSize = 16.sp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Phone: ${restaurantNew.phone}",
+                style = TextStyle(fontSize = 16.sp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            restaurantNew.cuisines?.let { cuisines ->
+                Text(
+                    text = "Cuisines:",
+                    style = TextStyle(fontSize = 16.sp)
+                )
+                cuisines.forEach { cuisine ->
+                    Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
+                        Text(
+                            text = "•",
+                            style = TextStyle(fontSize = 14.sp),
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                        Text(
+                            text = cuisine,
+                            style = TextStyle(fontSize = 14.sp),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            restaurantNew.meals?.let { meals ->
+                Text(
+                    text = "Meals:",
+                    style = TextStyle(fontSize = 16.sp)
+                )
+                meals.forEach { meal ->
+                    Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
+                        Text(
+                            text = "•",
+                            style = TextStyle(fontSize = 14.sp),
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                        Text(
+                            text = meal,
+                            style = TextStyle(fontSize = 14.sp),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Price: ${restaurantNew.price}",
+                style = TextStyle(fontSize = 16.sp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            restaurantNew.features?.let { features ->
+                Text(
+                    text = "Features:",
+                    style = TextStyle(fontSize = 16.sp)
+                )
+                features.forEach { feature ->
+                    Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
+                        Text(
+                            text = "•",
+                            style = TextStyle(fontSize = 14.sp),
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                        Text(
+                            text = feature,
+                            style = TextStyle(fontSize = 14.sp),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            restaurantNew.reviews?.let { reviews ->
+                Text(
+                    text = "Reviews:",
+                    style = TextStyle(fontSize = 16.sp)
+                )
+                reviews.forEach { review ->
+                    Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
+                        Text(
+                            text = "•",
+                            style = TextStyle(fontSize = 14.sp),
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                        Text(
+                            text = review,
+                            style = TextStyle(fontSize = 14.sp),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Latitude: ${restaurantNew.latitude}",
+                style = TextStyle(fontSize = 16.sp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Longitude: ${restaurantNew.longitude}",
+                style = TextStyle(fontSize = 16.sp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Similarity: ${restaurantNew.similarity}",
+                style = TextStyle(fontSize = 16.sp)
+            )
         }
     }
 }
