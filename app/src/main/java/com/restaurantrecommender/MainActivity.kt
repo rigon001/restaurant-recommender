@@ -1,8 +1,5 @@
 package com.restaurantrecommender
 
-//import androidx.compose.ui.platform.Surface
-//import android.os.Bundleimport
-
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -22,36 +19,43 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,15 +64,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -81,34 +90,17 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.restaurantrecommender.network.RetrofitInstance
 import com.restaurantrecommender.ui.theme.RestaurantRecommenderTheme
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
-import java.io.BufferedReader
 import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStreamReader
 
 
-// Define a data class for Restaurant
+
 data class Restaurant(
-    val name: String,
-    val city: String,
-    val country: String,
-    val address: String,
-    val latitude: Double,
-    val longitude: Double,
-    val price: String,
-    val style: String,
-    val reviews: List<String>? = null,
-    val similarity: Double
-)
-
-data class RestaurantNew(
     val title: String,
     val url: String,
 //    val textSnippet: String,
@@ -133,16 +125,10 @@ data class RecommendationResponse(
     val recommendations: List<Restaurant>
 )
 
-data class RecommendationResponseNew(
-    val recommendations: List<RestaurantNew>
-)
-
 class MainActivity : ComponentActivity() {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
-    // List of cities loaded from CSV file
-    private var cities by mutableStateOf<List<String>>(emptyList())
     private lateinit var webView: WebView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -164,7 +150,6 @@ class MainActivity : ComponentActivity() {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             webViewClient = WebViewClient()
-//            loadUrl("file:///android_asset/map.html")
         }
         setupWebView()
 
@@ -173,16 +158,9 @@ class MainActivity : ComponentActivity() {
             RestaurantRecommenderTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     val resources = resources
-                    // Function to load cities from CSV file
-                    LaunchedEffect(Unit) {
-                        withContext(Dispatchers.IO) {
-                            cities = readCitiesFromCsv(resources)
-                        }
-                    }
                     ContentWithTitle(
                         modifier = Modifier.padding(innerPadding),
                         resources = resources,
-                        cities = cities,
                         webView = webView
                     )
                 }
@@ -232,8 +210,6 @@ class MainActivity : ComponentActivity() {
                         val userPreferences = UserPreferences(this)
                         userPreferences.latitude = latitude.toString()
                         userPreferences.longitude = longitude.toString()
-                        // Load the HTML file after location is available
-                        setupWebView()
                     } else {
                         Log.d("Location", "Location is null")
                     }
@@ -300,7 +276,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities: List<String>, webView: WebView) {
+fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webView: WebView) {
     val context = LocalContext.current
     val userPreferences = remember { UserPreferences(context) }
 
@@ -308,20 +284,12 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
     // State for search query
     var searchQuery by remember { mutableStateOf("") }
 
-    // State for selected radio button
-    var selectedOption by remember { mutableStateOf("Location Based Search") }
-
     // State for search results
     var searchResults by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
-    var searchResultsNew by remember { mutableStateOf<List<RestaurantNew>>(emptyList()) }
-
 
     // State for loading status
     var isLoading by remember { mutableStateOf(false) }
 
-    // State for dropdown menu
-    var expanded by remember { mutableStateOf(false) }
-    var selectedCity by remember { mutableStateOf("Ljubljana") }
     val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
     // State for search submission
@@ -331,7 +299,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
 
 
     // Function to make API call
-    fun searchRestaurants(selectedOption: String, query: String, city: String? = null, userPreferences: UserPreferences, context: Context) {
+    fun searchRestaurants(query: String, userPreferences: UserPreferences, context: Context) {
         isLoading = true
         hasSearched = true
 
@@ -428,76 +396,34 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
         }
 
         // Prepare the JSON payload
-        val jsonPayload = if (selectedOption == "Similar Restaurants Search") {
-            mapOf("input" to enhancedQuery, "city" to (city ?: ""))
-        } else {
-            mapOf("input" to enhancedQuery)
-        }
+        val jsonPayload = mapOf("input" to enhancedQuery)
 
         Log.d("Search", "Making API call jsonpayload: $jsonPayload")
 
-        val call = when (selectedOption) {
-            "Location Based Search" -> RetrofitInstance.api.getOtherRestaurants(jsonPayload)
-            "Similar Restaurants Search" -> RetrofitInstance.api.getRestaurants(jsonPayload)
-            "New API Search" -> RetrofitInstance.api.getRestaurantsNew(jsonPayload) // ✅ New API Call
-            else -> throw IllegalArgumentException("Unsupported model: $selectedOption")
-        }
+        val call =  RetrofitInstance.api.getRestaurants(jsonPayload)
 
-        Log.d("Search", "Making API call with model: $selectedOption, query: $enhancedQuery")
+        Log.d("Search", "Making API call with query: $enhancedQuery")
         Log.d("Search", "Making API call jsonpayload: $jsonPayload")
 
-        if (selectedOption == "New API Search") {
-            (call as Call<RecommendationResponseNew>).enqueue(object : Callback<RecommendationResponseNew> {
-                override fun onResponse(call: Call<RecommendationResponseNew>, response: Response<RecommendationResponseNew>) {
-                    isLoading = false
-                    if (response.isSuccessful) {
-                        searchResultsNew = response.body()?.recommendations ?: emptyList()
-                        // ✅ Add this line to load markers on the map
-                        loadMapWithMarkers(webView, searchResultsNew)
-                    } else {
-                        Log.d("Search", "New API call failed: ${response.code()}")
-                    }
-                }
 
-                override fun onFailure(call: Call<RecommendationResponseNew>, t: Throwable) {
-                    isLoading = false
-                    Log.e("Search", "New API call error: ${t.message}")
+        call.enqueue(object : Callback<RecommendationResponse> {
+            override fun onResponse(call: Call<RecommendationResponse>, response: Response<RecommendationResponse>) {
+                isLoading = false
+                if (response.isSuccessful) {
+                    searchResults = response.body()?.recommendations ?: emptyList()
+                    // ✅ Add this line to load markers on the map
+                    loadMapWithMarkers(webView, searchResults)
+                } else {
+                    Log.d("Search", "New API call failed: ${response.code()}")
                 }
-            })
-        } else {
-            (call as Call<RecommendationResponse>).enqueue(object : Callback<RecommendationResponse> {
-                override fun onResponse(call: Call<RecommendationResponse>, response: Response<RecommendationResponse>) {
-                    isLoading = false
-                    if (response.isSuccessful) {
-                        val recommendationResponse = response.body()
-                        val restaurants = recommendationResponse?.recommendations ?: emptyList()
-                        if (restaurants.isEmpty()) {
-                            // Handle case where no restaurants are found
-                            searchResults = emptyList()
-                            Log.d("Search", "No restaurants found.")
-                        } else {
-                            searchResults = restaurants
-                            Log.d("Search", "API call successful. " +
-                                    "Received ${searchResults.size} results.")
-                            loadMapWithMarkers(webView, searchResults)
-                            val topRestaurants = restaurants.take(5).map { it.name }
-                            userPreferences.addTopRestaurants(topRestaurants)
-                        }
-                    } else {
-                        Log.d("Search", "API call unsuccessful. Status code: ${response.code()}")
-                        // Handle unsuccessful response
-                    }
-                }
+            }
 
-                override fun onFailure(call: Call<RecommendationResponse>, t: Throwable) {
-                    isLoading = false
-                    Log.e("Search", "Old API call error: ${t.message}")
-                }
-            })
-        }
-
+            override fun onFailure(call: Call<RecommendationResponse>, t: Throwable) {
+                isLoading = false
+                Log.e("Search", "New API call error: ${t.message}")
+            }
+        })
     }
-
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -524,61 +450,6 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
 
             Spacer(modifier = Modifier.height(16.dp))
             // Map Section ended
-
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
-                        selected = selectedOption == "Location Based Search",
-                        onClick = { selectedOption = "Location Based Search" }
-                    )
-                    Text(text = "Location Based Search",
-                        modifier = Modifier.padding(start = 8.dp),
-                        color = MaterialTheme.colorScheme.onPrimary)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
-                        selected = selectedOption == "Similar Restaurants Search",
-                        onClick = { selectedOption = "Similar Restaurants Search" }
-                    )
-                    Text(text = "Similar Restaurants Search",
-                        modifier = Modifier.padding(start = 8.dp),
-                        color = MaterialTheme.colorScheme.onPrimary)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
-                        selected = selectedOption == "New API Search",
-                        onClick = { selectedOption = "New API Search" }
-                    )
-                    Text(text = "New API Search",
-                        modifier = Modifier.padding(start = 8.dp),
-                        color = MaterialTheme.colorScheme.onPrimary)
-                }
-
-                if (selectedOption == "Similar Restaurants Search") {
-                    Button(
-                        onClick = { expanded = !expanded },
-                        modifier = Modifier.padding(start = 8.dp)
-                    ) {
-                        Text(text = selectedCity)
-                    }
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        cities.forEach { city ->
-                            DropdownMenuItem(
-                                onClick = {
-                                    selectedCity = city
-                                    expanded = false
-                                },
-                                text = { Text(text = city) }
-                            )
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp)) // Add some space after radio buttons
-            // Search box and button in one row
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -597,9 +468,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                         onDone = { // No need for explicit cast
                             coroutineScope.launch {
                                 searchRestaurants(
-                                    selectedOption,
                                     searchQuery,
-                                    if (selectedOption == "Similar Restaurants Search") selectedCity else null,
                                     userPreferences,
                                     context
                                 )
@@ -612,11 +481,8 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
                 IconButton(
                     onClick = {
                         userPreferences.userId = userId
-                        userPreferences.city = selectedCity
                         coroutineScope.launch {
-                            searchRestaurants(selectedOption, searchQuery,
-                                if (selectedOption == "Similar Restaurants Search") selectedCity
-                                else null, userPreferences, context)
+                            searchRestaurants(searchQuery, userPreferences, context)
                             delay(500) // Delay for 0.5 seconds (500 milliseconds)
                             keyboardController?.hide()
                         }
@@ -634,396 +500,189 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources, cities
             // Show filtered restaurants only if searchQuery is not empty
             if (isLoading) {
                 Text(text = "Loading...")
-            } else if (searchResults.isEmpty() && searchResultsNew.isEmpty() && hasSearched) {
+            } else if (searchResults.isEmpty() && hasSearched) {
                 if (searchQuery.isNotEmpty()) {
                     Text(text = "No restaurants found.", color = MaterialTheme.colorScheme.error)
                 }
             } else {
                 LazyColumn {
-                    // Case 1: Display results from the new API (if selected)
-                    if (selectedOption == "New API Search" && searchResultsNew.isNotEmpty()) {
-                        items(searchResultsNew) { restaurantNew ->
-                            RestaurantNewCard(restaurantNew = restaurantNew, webView = webView)
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-
-                    // Case 2: Display results from the existing API (if selected)
-                    if (selectedOption != "New API Search" && searchResults.isNotEmpty()) {
-                        items(searchResults) { restaurant ->
-                            RestaurantCard(restaurant = restaurant, webView = webView)
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
+                    items(searchResults) { restaurant ->
+                        RestaurantCard(restaurant = restaurant, webView = webView)
+                        Spacer(modifier = Modifier.height(3.dp))
                     }
                 }
             }
         }
     }
 }
-
 @Composable
-fun RestaurantCard(restaurant: Restaurant,  webView: WebView) {
-    val context = LocalContext.current
-    val userPreferences = UserPreferences(context)  // Access UserPreferences here
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                // Track the clicked restaurant
-                userPreferences.addClickedRestaurant(restaurant.name)
-                userPreferences.addRestaurantStyle(restaurant.style)
-                userPreferences.addRestaurantPrice(restaurant.price)
-
-
-                // Trigger the marker click in the WebView
-                webView.evaluateJavascript(
-                    """
-                (function() {
-                    if (typeof markersLayerGroup === 'undefined') {
-                        console.log('markersLayerGroup is undefined.');
-                        return null;
-                    }
-            
-                    var markers = markersLayerGroup.getLayers();
-                    console.log('Markers count:', markers.length);
-            
-                    for (var i = 0; i < markers.length; i++) {
-                        console.log('Marker popup content:', markers[i].getPopup().getContent());
-                        if (markers[i].getPopup().getContent().includes("${restaurant.address}")) {
-                            console.log('Found matching marker for address:', "${restaurant.address}");
-                            
-                            // Smoothly pan to the marker
-                            map.flyTo(markers[i].getLatLng(), 16, {
-                                animate: true,
-                                duration: 1.5
-                            });
-            
-                            // Open the marker's popup
-                            setTimeout(() => {
-                                markers[i].openPopup();
-                            }, 1600); // Delay matches the duration of flyTo (1.6 seconds = 1600 ms)
-                            return 'success';
-                        }
-                    }
-            
-                    console.log('No marker found for address:', "${restaurant.address}");
-                    return null;
-                })();
-                """.trimIndent()
-                ) { result ->
-                    Log.d("WebView", "Marker click triggered: $result")
-                }
-            },
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        Card(
-            modifier = Modifier.padding(16.dp)
-//            elevation = 4.dp
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = restaurant.name,
-                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "City: ${restaurant.city}, Country: ${restaurant.country}",
-                    style = TextStyle(fontSize = 16.sp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Address: ${restaurant.address}",
-                    style = TextStyle(fontSize = 16.sp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Price: ${restaurant.price}",
-                    style = TextStyle(fontSize = 16.sp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Style: ${restaurant.style}",
-                    style = TextStyle(fontSize = 16.sp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                // Conditional display of reviews section
-                restaurant.reviews?.let { reviews ->
-                    Text(
-                        text = "Reviews:",
-                        style = TextStyle(fontSize = 16.sp)
-                    )
-                    reviews.forEach { review ->
-                        Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
-                            Text(
-                                text = "•",
-                                style = TextStyle(fontSize = 14.sp),
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
-                            Text(
-                                text = review,
-                                style = TextStyle(fontSize = 14.sp),
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                }
-                Text(
-                    text = "Similarity: ${restaurant.similarity}",
-                    style = TextStyle(fontSize = 16.sp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun RestaurantNewCard(restaurantNew: RestaurantNew, webView: WebView) {
+fun RestaurantCard(restaurant: Restaurant, webView: WebView) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
-    val userPreferences = UserPreferences(context)  // Access UserPreferences here
+    val userPreferences = UserPreferences(context)
 
-    Surface(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                // Track the clicked restaurant
-                userPreferences.addClickedRestaurant(restaurantNew.title)
-
-                // Trigger marker click in WebView
+                userPreferences.addClickedRestaurant(restaurant.title)
                 webView.evaluateJavascript(
                     """
-                (function() {
-                    if (typeof markersLayerGroup === 'undefined') {
-                        console.log('markersLayerGroup is undefined.');
+                    (function() {
+                        if (typeof markersLayerGroup === 'undefined') {
+                            console.log('markersLayerGroup is undefined.');
+                            return null;
+                        }
+                        var markers = markersLayerGroup.getLayers();
+                        for (var i = 0; i < markers.length; i++) {
+                            if (markers[i].getPopup().getContent().includes("${restaurant.address}")) {
+                                map.flyTo(markers[i].getLatLng(), 16, { animate: true, duration: 1.5 });
+                                setTimeout(() => { markers[i].openPopup(); }, 1600);
+                                return 'success';
+                            }
+                        }
                         return null;
-                    }
-            
-                    var markers = markersLayerGroup.getLayers();
-                    console.log('Markers count:', markers.length);
-            
-                    for (var i = 0; i < markers.length; i++) {
-                        console.log('Marker popup content:', markers[i].getPopup().getContent());
-                        if (markers[i].getPopup().getContent().includes("${restaurantNew.address}")) {
-                            console.log('Found matching marker for address:', "${restaurantNew.address}");
-                            
-                            // Smoothly pan to the marker
-                            map.flyTo(markers[i].getLatLng(), 16, {
-                                animate: true,
-                                duration: 1.5
-                            });
-            
-                            // Open the marker's popup
-                            setTimeout(() => {
-                                markers[i].openPopup();
-                            }, 1600); // Delay matches the duration of flyTo (1.6 seconds = 1600 ms)
-                            return 'success';
-                        }
-                    }
-            
-                    console.log('No marker found for address:', "${restaurantNew.address}");
-                    return null;
-                })();
-                """.trimIndent()
-                ) { result ->
-                    Log.d("WebView", "Marker click triggered: $result")
-                }
+                    })();
+                    """.trimIndent()
+                ) { result -> Log.d("WebView", "Marker click triggered: $result") }
             },
-        color = MaterialTheme.colorScheme.surface
-    ){
-        Card(
-            modifier = Modifier.padding(16.dp),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = restaurantNew.title,
-                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(10.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Text(
+                text = restaurant.title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable { uriHandler.openUri(restaurant.url) }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Public, // 🌍 World Icon
+                    contentDescription = "Website",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(12.dp)
                 )
-//            Spacer(modifier = Modifier.height(4.dp))
-//            Text(
-//                text = "Snippet: ${restaurantNew.textSnippet}",
-//                style = TextStyle(fontSize = 16.sp)
-//            )
-                Spacer(modifier = Modifier.height(4.dp))
-                // Clickable URL
-                ClickableText(
-                    text = AnnotatedString(restaurantNew.url),
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Visit Restaurant Page",
                     style = TextStyle(
-                        fontSize = 16.sp,
-                        color = Color.Blue, // Makes it look like a link
+                        fontSize = 12.sp,
+                        color = Color.Blue,
                         textDecoration = TextDecoration.Underline
-                    ),
-                    onClick = {
-                        uriHandler.openUri(restaurantNew.url) // Open URL in a browser
-                    }
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Address: ${restaurantNew.address}",
-                    style = TextStyle(fontSize = 16.sp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Phone: ${restaurantNew.phone}",
-                    style = TextStyle(fontSize = 16.sp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                restaurantNew.cuisines?.let { cuisines ->
-                    Text(
-                        text = "Cuisines:",
-                        style = TextStyle(fontSize = 16.sp)
                     )
-                    cuisines.forEach { cuisine ->
-                        Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
-                            Text(
-                                text = "•",
-                                style = TextStyle(fontSize = 14.sp),
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
-                            Text(
-                                text = cuisine,
-                                style = TextStyle(fontSize = 14.sp),
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                restaurantNew.meals?.let { meals ->
-                    Text(
-                        text = "Meals:",
-                        style = TextStyle(fontSize = 16.sp)
-                    )
-                    meals.forEach { meal ->
-                        Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
-                            Text(
-                                text = "•",
-                                style = TextStyle(fontSize = 14.sp),
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
-                            Text(
-                                text = meal,
-                                style = TextStyle(fontSize = 14.sp),
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Price: ${restaurantNew.price}",
-                    style = TextStyle(fontSize = 16.sp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                restaurantNew.features?.let { features ->
-                    Text(
-                        text = "Features:",
-                        style = TextStyle(fontSize = 16.sp)
-                    )
-                    features.forEach { feature ->
-                        Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
-                            Text(
-                                text = "•",
-                                style = TextStyle(fontSize = 14.sp),
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
-                            Text(
-                                text = feature,
-                                style = TextStyle(fontSize = 14.sp),
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                restaurantNew.reviews?.let { reviews ->
-                    Text(
-                        text = "Reviews:",
-                        style = TextStyle(fontSize = 16.sp)
-                    )
-                    reviews.forEach { review ->
-                        Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
-                            Text(
-                                text = "•",
-                                style = TextStyle(fontSize = 14.sp),
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
-                            Text(
-                                text = review,
-                                style = TextStyle(fontSize = 14.sp),
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Latitude: ${restaurantNew.latitude}",
-                    style = TextStyle(fontSize = 16.sp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Longitude: ${restaurantNew.longitude}",
-                    style = TextStyle(fontSize = 16.sp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Similarity: ${restaurantNew.similarity}",
-                    style = TextStyle(fontSize = 16.sp)
                 )
             }
-        }
+            Spacer(modifier = Modifier.height(2.dp))
+            // Address & Phone
+            FlowRow {
+                InfoRow(Icons.Default.LocationOn, "Address", restaurant.address)
+                InfoRow(Icons.Default.Phone, "Phone", restaurant.phone)
+            }
 
+            // Cuisines & Meals inline
+            FlowRow {
+                restaurant.cuisines?.let { InlineInfoList("Cuisines", it) }
+                restaurant.meals?.let { InlineInfoList("Meals", it) }
+
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                            append("Price: ")
+                        }
+                        append(restaurant.price)
+                    },
+                    style = MaterialTheme.typography.bodySmall
+                )
+                restaurant.features?.let { InlineInfoList("Features", it) }
+            }
+            // Reviews (only show a few)
+//            FlowRow {
+//                restaurant.reviews?.take(2)?.let { InlineInfoList("Reviews", it, maxChars = 100) }
+//            }
+        }
     }
 }
 
-fun loadMapWithMarkers(webView: WebView, restaurants: List<Any>) {
-    val simplifiedRestaurantsOld = mutableListOf<Map<String, String>>() // For old API
-    val simplifiedRestaurantsNew = mutableListOf<Map<String, Any>>() // For new API with geo-coordinates
 
-    // Separate lists based on type
-    restaurants.forEach { restaurant ->
-        when (restaurant) {
-            is Restaurant -> simplifiedRestaurantsOld.add(
-                mapOf(
-                    "name" to restaurant.name,
-                    "address" to restaurant.address
-                )
-            )
-            is RestaurantNew -> simplifiedRestaurantsNew.add(
-                mapOf(
-                    "name" to restaurant.title,
-                    "address" to restaurant.address,
-                    "latitude" to (restaurant.latitude ?: 0.0),  // Use 0.0 if null
-                    "longitude" to (restaurant.longitude ?: 0.0) // Use 0.0 if null
-                )
-            )
-        }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun FlowRow(
+    modifier: Modifier = Modifier,
+    padding: Dp = 0.dp, // Default padding
+    horizontalSpacing: Dp = 2.dp, // Default horizontal spacing
+    verticalSpacing: Dp = 1.dp, // Default vertical spacing
+    content: @Composable () -> Unit
+) {
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = modifier.fillMaxWidth().padding(padding),
+        horizontalArrangement = Arrangement.spacedBy(horizontalSpacing),
+        verticalArrangement = Arrangement.spacedBy(verticalSpacing)
+    ) {
+        content()
     }
+}
 
+@Composable
+fun InlineInfoList(label: String, items: List<String>, maxChars: Int = 50) {
+    Text(
+        text = "$label: ",
+        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold)
+    )
+
+    items.forEachIndexed { index, item ->
+        val truncatedText = if (item.length > maxChars) item.take(maxChars) + "..." else item
+        Text(
+            text = if (index < items.size - 1) "$truncatedText; " else truncatedText,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+
+// Helper function for info rows with icons
+@Composable
+fun InfoRow(icon: ImageVector, label: String, value: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 2.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(12.dp)
+        )
+        Spacer(modifier = Modifier.width(2.dp))
+        Text(
+            text = "$value",//"$label: $value",
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+
+fun loadMapWithMarkers(webView: WebView, restaurants: List<Restaurant>) {
+    val simplifiedRestaurants = restaurants.map {
+        mapOf(
+            "name" to it.title,
+            "address" to it.address,
+            "latitude" to (it.latitude ?: 0.0),
+            "longitude" to (it.longitude ?: 0.0)
+        )
+    }
     // Convert lists to JSON
-    val restaurantsJsonOld = Gson().toJson(simplifiedRestaurantsOld.take(10)) // Take the first 10 restaurants
-    val restaurantsJsonNew = Gson().toJson(simplifiedRestaurantsNew.take(10)) // Take the first 10 restaurants
+    val restaurantsJson = Gson().toJson(simplifiedRestaurants.take(10)) // Take the first 10 restaurants
 
     // Inject JavaScript functions based on API type
-    if (simplifiedRestaurantsOld.isNotEmpty()) {
-        webView.evaluateJavascript("addMarkersForOldApi($restaurantsJsonOld);", null)
-    }
-    if (simplifiedRestaurantsNew.isNotEmpty()) {
-        webView.evaluateJavascript("addMarkersWithCoordinates($restaurantsJsonNew);", null)
+    if (simplifiedRestaurants.isNotEmpty()) {
+        webView.evaluateJavascript("addMarkersWithCoordinates($restaurantsJson);", null)
     }
 }
-
 
 @Composable
 fun LocalWebView(webView: WebView) {
@@ -1040,7 +699,7 @@ fun LocalWebView(webView: WebView) {
             webViewClient = WebViewClient()
 
             // Load the local HTML file from the assets folder
-            loadUrl("file:///android_asset/map.html")
+//            loadUrl("file:///android_asset/map.html")
         }
     })
 }
@@ -1068,16 +727,3 @@ fun copyAssetsToInternalStorage(context: Context, assetDir: String, outputDir: F
     }
 }
 
-@Throws(Exception::class)
-private fun readCitiesFromCsv(resources: Resources): List<String> {
-    val inputStream = resources.openRawResource(R.raw.cities)
-    val reader = BufferedReader(InputStreamReader(inputStream))
-    val cities = mutableListOf<String>()
-    var line: String? = reader.readLine()
-    while (line != null) {
-        cities.add(line)
-        line = reader.readLine()
-    }
-    reader.close()
-    return cities
-}
