@@ -96,6 +96,23 @@
         markersLayerGroup = markers;
     }
 
+    // Function for New API restaurants (already have lat/lon)
+    function addMarkersWithCoordinates(restaurants) {
+        console.log("Adding markers for New API (Lat/Lon available):", restaurants);
+
+        restaurants.forEach(function(restaurant) {
+            if (restaurant.latitude !== 0.0 && restaurant.longitude !== 0.0) {
+                var marker = L.marker([restaurant.latitude, restaurant.longitude])
+                    .bindPopup('<b>' + restaurant.name + '</b><br>' + restaurant.address
+                    + '<br><button onclick="showDirections(' + restaurant.latitude + ', ' + restaurant.longitude + ')">Directions</button>');
+
+                markersLayerGroup.addLayer(marker);
+            } else {
+                console.warn("Skipping restaurant with missing lat/lon:", restaurant);
+            }
+        });
+    }
+
     // Function to show directions
     function showDirections(lat, lon) {
         // Clear previous route
@@ -117,6 +134,15 @@
                 ],
                 routeWhileDragging: true
             }).addTo(map);
+
+            // After showing the route, redirect back to user location
+            setTimeout(() => {
+                map.flyTo([startLat, startLon], 16, {
+                    animate: true,
+                    duration: 1.5 // Smooth transition back in 2 seconds
+                });
+            }, 1000);
+
         } else {
             alert('Could not get your stored location.');
             console.log('Could not get your stored location.');
