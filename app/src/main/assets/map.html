@@ -98,20 +98,38 @@
 
     // Function for New API restaurants (already have lat/lon)
     function addMarkersWithCoordinates(restaurants) {
-        console.log("Adding markers for New API (Lat/Lon available):", restaurants);
+        console.log("In addMarkersWithCoordinates");
+
+        // Clear existing markers before adding new ones
+        markersLayerGroup.clearLayers();
+
+        // Clear previous route when new markers are added
+        clearRoute();
+
+        // Create a new marker cluster group
+        var markers = L.markerClusterGroup();
 
         restaurants.forEach(function(restaurant) {
             if (restaurant.latitude !== 0.0 && restaurant.longitude !== 0.0) {
                 var marker = L.marker([restaurant.latitude, restaurant.longitude])
-                    .bindPopup('<b>' + restaurant.name + '</b><br>' + restaurant.address
-                    + '<br><button onclick="showDirections(' + restaurant.latitude + ', ' + restaurant.longitude + ')">Directions</button>');
+                    .bindPopup('<b>' + restaurant.name + '</b><br>' + restaurant.address +
+                    '<br><button onclick="showDirections(' + restaurant.latitude + ', ' + restaurant.longitude + ')">Directions</button>');
 
-                markersLayerGroup.addLayer(marker);
+                markers.addLayer(marker); // Add marker to the cluster group
             } else {
                 console.warn("Skipping restaurant with missing lat/lon:", restaurant);
             }
         });
+
+        // Add clustered markers to the map
+        map.addLayer(markers);
+
+        // Store the marker cluster group globally to allow clearing later
+        markersLayerGroup = markers;
+
+        console.log("addMarkersWithCoordinates ended.");
     }
+
 
     // Function to show directions
     function showDirections(lat, lon) {
@@ -156,6 +174,23 @@
             currentRoutingControl = null;
         }
     }
+
+    function fitBoundsToMarkers() {
+        console.log("In fitBoundsToMarkers");
+        if (typeof markersLayerGroup === 'undefined' || markersLayerGroup.getLayers().length === 0) {
+            console.log("No markers to fit bounds.");
+            return;
+        }
+
+        var bounds = L.latLngBounds(); // Create bounds object
+        markersLayerGroup.eachLayer(function(marker) {
+            bounds.extend(marker.getLatLng()); // Extend bounds to include each marker
+        });
+
+        map.fitBounds(bounds, { padding: [50, 50] }); // Adjust zoom & center
+        console.log("fitBoundsToMarkers ended.");
+    }
+
 
 </script>
 </body>

@@ -102,6 +102,7 @@ import java.io.FileOutputStream
 
 data class Restaurant(
     val title: String,
+    val name: String,
     val url: String,
 //    val textSnippet: String,
     val address: String,
@@ -535,8 +536,8 @@ fun RestaurantCard(restaurant: Restaurant, webView: WebView) {
                         }
                         var markers = markersLayerGroup.getLayers();
                         for (var i = 0; i < markers.length; i++) {
-                            if (markers[i].getPopup().getContent().includes("${restaurant.address}")) {
-                                map.flyTo(markers[i].getLatLng(), 16, { animate: true, duration: 1.5 });
+                            if (markers[i].getPopup().getContent().includes("${restaurant.title}")) {
+                                map.flyTo(markers[i].getLatLng(), 18, { animate: true, duration: 1.4 });
                                 setTimeout(() => { markers[i].openPopup(); }, 1600);
                                 return 'success';
                             }
@@ -667,6 +668,7 @@ fun InfoRow(icon: ImageVector, label: String, value: String) {
 
 
 fun loadMapWithMarkers(webView: WebView, restaurants: List<Restaurant>) {
+    Log.d("Search","loading Map With Markers.")
     val simplifiedRestaurants = restaurants.map {
         mapOf(
             "name" to it.title,
@@ -676,12 +678,16 @@ fun loadMapWithMarkers(webView: WebView, restaurants: List<Restaurant>) {
         )
     }
     // Convert lists to JSON
-    val restaurantsJson = Gson().toJson(simplifiedRestaurants.take(10)) // Take the first 10 restaurants
+    val restaurantsJson = Gson().toJson(simplifiedRestaurants)
 
     // Inject JavaScript functions based on API type
     if (simplifiedRestaurants.isNotEmpty()) {
-        webView.evaluateJavascript("addMarkersWithCoordinates($restaurantsJson);", null)
+        webView.evaluateJavascript("""
+            addMarkersWithCoordinates($restaurantsJson);
+            fitBoundsToMarkers();
+        """.trimIndent(), null)
     }
+    Log.d("Search","loading Map With Markers ended.")
 }
 
 @Composable
@@ -697,9 +703,6 @@ fun LocalWebView(webView: WebView) {
 
             // Set a WebViewClient to handle loading
             webViewClient = WebViewClient()
-
-            // Load the local HTML file from the assets folder
-//            loadUrl("file:///android_asset/map.html")
         }
     })
 }
