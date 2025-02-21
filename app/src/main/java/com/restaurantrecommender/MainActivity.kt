@@ -101,7 +101,7 @@ import java.io.FileOutputStream
 
 
 data class Restaurant(
-    val title: String,
+//    val title: String,
     val name: String,
     val url: String,
 //    val textSnippet: String,
@@ -526,7 +526,7 @@ fun RestaurantCard(restaurant: Restaurant, webView: WebView) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                userPreferences.addClickedRestaurant(restaurant.title)
+                userPreferences.addClickedRestaurant(restaurant.name)
                 webView.evaluateJavascript(
                     """
                     (function() {
@@ -536,7 +536,7 @@ fun RestaurantCard(restaurant: Restaurant, webView: WebView) {
                         }
                         var markers = markersLayerGroup.getLayers();
                         for (var i = 0; i < markers.length; i++) {
-                            if (markers[i].getPopup().getContent().includes("${restaurant.title}")) {
+                            if (markers[i].getPopup().getContent().includes("${restaurant.name}")) {
                                 map.flyTo(markers[i].getLatLng(), 18, { animate: true, duration: 1.4 });
                                 setTimeout(() => { markers[i].openPopup(); }, 1600);
                                 return 'success';
@@ -553,7 +553,7 @@ fun RestaurantCard(restaurant: Restaurant, webView: WebView) {
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Text(
-                text = restaurant.title,
+                text = restaurant.name,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
             )
             Spacer(modifier = Modifier.height(2.dp))
@@ -671,7 +671,7 @@ fun loadMapWithMarkers(webView: WebView, restaurants: List<Restaurant>) {
     Log.d("Search","loading Map With Markers.")
     val simplifiedRestaurants = restaurants.map {
         mapOf(
-            "name" to it.title,
+            "name" to it.name,
             "address" to it.address,
             "latitude" to (it.latitude ?: 0.0),
             "longitude" to (it.longitude ?: 0.0)
