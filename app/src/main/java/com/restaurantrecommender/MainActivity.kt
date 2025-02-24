@@ -281,7 +281,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
     val context = LocalContext.current
     val userPreferences = remember { UserPreferences(context) }
 
-    var userId by remember { mutableStateOf(userPreferences.userId ?: "") }
+    val userId by remember { mutableStateOf(userPreferences.userId ?: "") }
     // State for search query
     var searchQuery by remember { mutableStateOf("") }
 
@@ -345,9 +345,9 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
                     "FEATURE" -> {
                         userPreferences.addUserFeatures(entityText)
                     }
-                    "RATING" -> {
-                        userPreferences.addUserRatings(entityText)
-                    }
+//                    "RATING" -> {
+//                        userPreferences.addUserRatings(entityText)
+//                    }
                     else -> {
                         Log.d("PYTHON","Unrecognized label: $entityLabel")
                     }
@@ -527,6 +527,10 @@ fun RestaurantCard(restaurant: Restaurant, webView: WebView) {
             .fillMaxWidth()
             .clickable {
                 userPreferences.addClickedRestaurant(restaurant.name)
+                restaurant.cuisines?.let { userPreferences.addRestaurantStyle(it)}
+                restaurant.meals?.let { userPreferences.addRestaurantMeals(it) }
+                restaurant.features?.let { userPreferences.addRestaurantFeatures(it) }
+                userPreferences.addRestaurantPrice(restaurant.price)
                 webView.evaluateJavascript(
                     """
                     (function() {

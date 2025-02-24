@@ -3,6 +3,7 @@ package com.restaurantrecommender
 import android.content.Context
 import android.content.SharedPreferences
 import android.provider.Settings
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.util.*
@@ -32,7 +33,7 @@ class UserPreferences(context: Context) {
         private const val MAX_ITEMS = 100
     }
 
-    var clickedRestaurants: List<String>
+    private var clickedRestaurants: List<String>
         get() {
             val json = sharedPreferences.getString(KEY_CLICKED_RESTAURANTS, null)
             val type = object : TypeToken<List<String>>() {}.type
@@ -219,8 +220,6 @@ class UserPreferences(context: Context) {
         clickedRestaurants = currentList
     }
 
-
-
     private fun <T> manageListSize(list: List<T>): List<T> {
         return if (list.size > MAX_ITEMS) {
             list.takeLast(MAX_ITEMS)
@@ -249,32 +248,44 @@ class UserPreferences(context: Context) {
     }
 
     // Function to add a style entry
-    fun addRestaurantStyle(styleEntry: String) {
+    fun addRestaurantStyle(styleEntries: Any) {
         val currentList = restaurantStyles.toMutableList()
-        currentList.add(styleEntry)
+        when (styleEntries) {
+            is String -> currentList.add(styleEntries) // Add a single string entry
+            is List<*> -> currentList.addAll(styleEntries.filterIsInstance<String>()) // Add all valid strings from a list
+            else -> Log.e("addRestaurantStyle", "Invalid input type: ${styleEntries::class.java}")
+        }
         restaurantStyles = currentList
     }
 
     // Function to add a meals entry
-    fun addRestaurantMeals(priceEntry: String) {
+    fun addRestaurantMeals(mealsEntries: Any) {
         val currentList = restaurantMeals.toMutableList()
-        currentList.add(priceEntry)
+        when (mealsEntries) {
+            is String -> currentList.add(mealsEntries) // Add a single string entry
+            is List<*> -> currentList.addAll(mealsEntries.filterIsInstance<String>()) // Add all valid strings from a list
+            else -> Log.e("addRestaurantMeals", "Invalid input type: ${mealsEntries::class.java}")
+        }
         restaurantMeals = currentList
     }
 
     // Function to add a features entry
-    fun addRestaurantFeatures(priceEntry: String) {
+    fun addRestaurantFeatures(featuresEntries: Any) {
         val currentList = restaurantFeatures.toMutableList()
-        currentList.add(priceEntry)
+        when (featuresEntries) {
+            is String -> currentList.add(featuresEntries) // Add a single string entry
+            is List<*> -> currentList.addAll(featuresEntries.filterIsInstance<String>()) // Add all valid strings from a list
+            else -> Log.e("addRestaurantFeatures", "Invalid input type: ${featuresEntries::class.java}")
+        }
         restaurantFeatures = currentList
     }
 
-    // Function to add a ratings entry
-    fun addRestaurantRatings(priceEntry: String) {
-        val currentList = restaurantRatings.toMutableList()
-        currentList.add(priceEntry)
-        userRatings = currentList
-    }
+//    // Function to add a ratings entry
+//    fun addRestaurantRatings(priceEntry: String) {
+//        val currentList = restaurantRatings.toMutableList()
+//        currentList.add(priceEntry)
+//        userRatings = currentList
+//    }
 
     // Function to add a price entry
     fun addUserPrice(priceEntry: String) {
@@ -304,11 +315,11 @@ class UserPreferences(context: Context) {
         userFeatures = currentList
     }
 
-    // Function to add a ratings entry
-    fun addUserRatings(priceEntry: String) {
-        val currentList = userRatings.toMutableList()
-        currentList.add(priceEntry)
-        userRatings = currentList
-    }
+//    // Function to add a ratings entry
+//    fun addUserRatings(priceEntry: String) {
+//        val currentList = userRatings.toMutableList()
+//        currentList.add(priceEntry)
+//        userRatings = currentList
+//    }
 
 }
