@@ -315,6 +315,17 @@ class UserPreferences(context: Context) {
         userFeatures = currentList
     }
 
+    fun getUserPreferenceList(key: String): List<String> {
+        val json = sharedPreferences.getString(key, null) ?: return emptyList()
+
+        return try {
+            val type = object : TypeToken<List<String>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            Log.e("UserPreferences", "Error parsing preferences for key: $key", e)
+            emptyList()
+        }
+    }
 //    // Function to add a ratings entry
 //    fun addUserRatings(priceEntry: String) {
 //        val currentList = userRatings.toMutableList()

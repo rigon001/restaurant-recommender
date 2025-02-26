@@ -137,8 +137,8 @@
         clearRoute();
 
         // Get stored location from Android using WebAppInterface
-        var storedLatitude = 46.056946 //Android.getLatitude();
-        var storedLongitude = 14.505751 //Android.getLongitude();
+        var storedLatitude = Android.getLatitude();//46.056946
+        var storedLongitude = Android.getLongitude(); //14.505751
 
         if (storedLatitude && storedLongitude) {
             var startLat = parseFloat(storedLatitude);

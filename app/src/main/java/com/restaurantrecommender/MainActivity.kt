@@ -82,8 +82,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import com.chaquo.python.Python
-import com.chaquo.python.android.AndroidPlatform
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.gson.Gson
@@ -92,6 +90,9 @@ import com.restaurantrecommender.network.RetrofitInstance
 import com.restaurantrecommender.ui.theme.RestaurantRecommenderTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import okhttp3.RequestBody
+import okhttp3.MediaType
+import org.json.JSONObject
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -112,6 +113,9 @@ data class Restaurant(
     val meals: List<String>? = null,
     @SerializedName("price range")
     val price: String,
+    @SerializedName("price_category")
+    val priceCat: String,
+    @SerializedName("features_p")
     val features: List<String>? = null,
     @SerializedName("filtered_reviews")
     val reviews: List<String>? = null,
@@ -134,15 +138,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Destination path in internal storage
-        val internalModelDir = File(filesDir, "entity_ruler_patterns")
-
-        // Copy the model if not already copied
-        if (!internalModelDir.exists()) {
-            internalModelDir.mkdirs()
-            copyAssetsToInternalStorage(this, "entity_ruler_patterns", internalModelDir)
-        }
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
@@ -266,6 +261,7 @@ class MainActivity : ComponentActivity() {
         }
 
         webView.webViewClient = object : WebViewClient() {
+            @Deprecated("Deprecated in Java")
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 return false // Ensure navigation stays within the WebView
             }
@@ -309,121 +305,149 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
         // Save search query
         userPreferences.addSearchQuery(query)
 
-        // Initialize Python if not already started
-        if (!Python.isStarted()) {
-            Python.start(AndroidPlatform(context))
-        }
-        var enhancedQuery = ""
-        val entityRulerPath = File(context.filesDir, "entity_ruler_patterns").absolutePath
-        Log.d("PYTHON","entityRulerPath: $entityRulerPath")
+        fun callNERApi(query: String, callback: (Map<String, List<String>>) -> Unit) {
+            val jsonPayload = mapOf("input" to query)
+            Log.d("NER_API", "Calling API with: $jsonPayload")
 
+            val call = RetrofitInstance.api.extractEntities(jsonPayload)
+            call.enqueue(object : Callback<Map<String, List<String>>> {
+                override fun onResponse(
+                    call: Call<Map<String, List<String>>>,
+                    response: Response<Map<String, List<String>>>
+                ) {
+                    if (response.isSuccessful) {
+                        val nerResult = response.body() ?: emptyMap()
 
-        try {
-            Log.d("PYTHON","Spacy creation.")
-            val python = Python.getInstance()
-            val pyModule = python.getModule("spacy_handler") // Use your Python module name
-//            pyModule.callAttr("load_entity_ruler") // Call the function
-
-            val entities = pyModule.callAttr("process_sentence",
-                query,
-                entityRulerPath).asList()
-            for (entity in entities) {
-                val entityText = entity.asList()[0].toString()
-                val entityLabel = entity.asList()[1].toString()
-                Log.d("PYTHON","Entity: $entityText, Label: $entityLabel")
-                // Save the entity to the appropriate user preference based on the label
-                when (entityLabel) {
-                    "CUISINE" -> {
-                        userPreferences.addUserStyle(entityText)
-                    }
-                    "PRICE" -> {
-                        userPreferences.addUserPrice(entityText)
-                    }
-                    "MEALS" -> {
-                        userPreferences.addUserMeals(entityText)
-                    }
-                    "FEATURE" -> {
-                        userPreferences.addUserFeatures(entityText)
-                    }
-//                    "RATING" -> {
-//                        userPreferences.addUserRatings(entityText)
-//                    }
-                    else -> {
-                        Log.d("PYTHON","Unrecognized label: $entityLabel")
+                        // Log the full structured response
+                        Log.d("NER_API", "NER Response: $nerResult")
+                        callback(nerResult)  // Send results back
+                    } else {
+                        Log.e("NER_API", "Failed to extract entities: ${response.code()}")
+                        callback(emptyMap())  // Handle failure gracefully
                     }
                 }
-            }
-            Log.d("PYTHON","spacy_handler creation triggered successfully.")
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Log.d("PYTHON","Error triggering EntityRuler creation: ${e.message}")
+
+                override fun onFailure(call: Call<Map<String, List<String>>>, t: Throwable) {
+                    val request = call.request()
+                    val requestBody = request.body()?.toString() ?: "No Body"
+                    val requestUrl = request.url().toString()
+                    val requestHeaders = request.headers().toString()
+
+                    Log.e("NER_API", "API Call failed!")
+                    Log.e("NER_API", "Request URL: $requestUrl")
+                    Log.e("NER_API", "Request Headers: $requestHeaders")
+                    Log.e("NER_API", "Request Body: $requestBody")
+                    Log.e("NER_API", "Error Message: ${t.localizedMessage}", t)  // Print full error stack trace
+
+                    callback(emptyMap())  // Handle error gracefully
+                }
+
+            })
         }
 
-        // Run enhance_query Python script
-        try {
+        fun callRecommendationApi(query: String, extractedEntities: Map<String, List<String>>, userPreferences: UserPreferences)
+        {
+            // Prepare the JSON payload
+//            val jsonPayload = mutableMapOf<String, Any>(
+//                "input" to query,
+//                "entities" to extractedEntities
+//            )
+            val jsonPayload = JSONObject().apply {
+                put("input", query) // String input
+                put("entities", JSONObject(extractedEntities)) // Convert extractedEntities to JSON
+            }.toString()
 
-            // Convert UserPreferences to JSON-like format
-            val userPrefsMap = mapOf(
-                "user_styles" to userPreferences.userStyles,
-                "user_prices" to userPreferences.userPrice,
-                "user_meals" to userPreferences.userMeals,
-                "user_features" to userPreferences.userFeatures,
-                "user_ratings" to userPreferences.userRatings,
-                "restaurant_styles" to userPreferences.restaurantStyles,
-                "restaurant_prices" to userPreferences.restaurantPrices,
-                "restaurant_meals" to userPreferences.restaurantMeals,
-                "restaurant_features" to userPreferences.restaurantFeatures,
-                "restaurant_ratings" to userPreferences.restaurantRatings
-            )
+            // ✅ Convert JSON String to RequestBody
+            val requestBody: RequestBody = RequestBody.create(MediaType.parse("application/json"), jsonPayload)
+            Log.d("Search", "Making API call with query: $query")
+            Log.d("Search", "Making API call jsonpayload: $jsonPayload")
+            Log.d("Search", "Making API call requestBody: $requestBody")
+            val call =  RetrofitInstance.api.getRestaurants(requestBody)
 
-            // Convert the map to a JSON string
-            val userPrefsJson = Gson().toJson(userPrefsMap)
 
-            val py = Python.getInstance()
-            val module = py.getModule("complement_query") // Python script name without .py
 
-            enhancedQuery = module.callAttr(
-                "enhance_query", // Python function to call
-                query,
-                userPrefsJson, // Pass the path to the user_prefs.xml
-                entityRulerPath // EntityRuler path
-            ).toString()
+            call.enqueue(object : Callback<RecommendationResponse> {
+                override fun onResponse(call: Call<RecommendationResponse>, response: Response<RecommendationResponse>) {
+                    isLoading = false
+                    if (response.isSuccessful) {
+                        searchResults = response.body()?.recommendations ?: emptyList()
+                        // ✅ Add this line to load markers on the map
+                        loadMapWithMarkers(webView, searchResults)
+                    } else {
+                        Log.d("Search", "New API call failed: ${response.code()}")
+                    }
+                }
 
-            // Display the enhanced query
-            Log.d("PYTHON","Enhanced Query: $enhancedQuery")
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Log.d("PYTHON","Error triggering query enhancement: ${e.message}")
+                override fun onFailure(call: Call<RecommendationResponse>, t: Throwable) {
+                    isLoading = false
+                    Log.e("Search", "New API call error: ${t.message}")
+                }
+            })
         }
 
-        // Prepare the JSON payload
-        val jsonPayload = mapOf("input" to enhancedQuery)
+        Log.d("Search", "Calling NER API...")
+        callNERApi(query) { extractedEntities ->
+            Log.d("Search", "Extracted Entities: $extractedEntities")
 
-        Log.d("Search", "Making API call jsonpayload: $jsonPayload")
+            val missingCategories = mutableListOf<String>()
+            // ✅ Convert extractedEntities to a MutableMap so we can modify it
+            val modifiedEntities: MutableMap<String, List<String>> = extractedEntities.mapValues { it.value as List<String> }.toMutableMap()
 
-        val call =  RetrofitInstance.api.getRestaurants(jsonPayload)
+            var updatedQuery = query
 
-        Log.d("Search", "Making API call with query: $enhancedQuery")
-        Log.d("Search", "Making API call jsonpayload: $jsonPayload")
-
-
-        call.enqueue(object : Callback<RecommendationResponse> {
-            override fun onResponse(call: Call<RecommendationResponse>, response: Response<RecommendationResponse>) {
-                isLoading = false
-                if (response.isSuccessful) {
-                    searchResults = response.body()?.recommendations ?: emptyList()
-                    // ✅ Add this line to load markers on the map
-                    loadMapWithMarkers(webView, searchResults)
+            // Iterate over the extracted entities and update user preferences
+            extractedEntities.forEach { (category, entityList) ->
+                if (entityList.isNotEmpty()) {
+                    // Call the corresponding method based on the category
+                    when (category) {
+                        "cuisine" -> entityList.forEach { userPreferences.addUserStyle(it) }
+                        "meals" -> entityList.forEach { userPreferences.addUserMeals(it) }
+                        "pricing category" -> entityList.forEach { userPreferences.addUserPrice(it) }
+                        "features" -> entityList.forEach { userPreferences.addUserFeatures(it) }
+                    }
                 } else {
-                    Log.d("Search", "New API call failed: ${response.code()}")
+                    Log.d("Search", "category is empty: $category")
+                    // If the list is empty, add category to missing list
+                    missingCategories.add(category)
                 }
             }
 
-            override fun onFailure(call: Call<RecommendationResponse>, t: Throwable) {
-                isLoading = false
-                Log.e("Search", "New API call error: ${t.message}")
+            // Log missing categories
+            if (missingCategories.isNotEmpty()) {
+                Log.d("Search", "Missing Categories: $missingCategories")
+
+                // Try to complement missing categories using user context
+                missingCategories.forEach { category ->
+                    if (category == "location") {
+                        // Handle missing location separately
+                        val userLatitude = userPreferences.latitude
+                        val userLongitude = userPreferences.longitude
+
+                        if (userLatitude != null && userLongitude != null) {
+                            Log.d("Search", "Location is missing in NER response. Using user location: $userLatitude, $userLongitude")
+                            modifiedEntities["location"] = listOf("$userLatitude", "$userLongitude")
+                        } else {
+                            Log.w("Search", "Location is missing in NER response, and no user location is available.")
+                        }
+                    } else {
+                        val dominantPreference = analyzeUserContext(userPreferences, category)
+                        if (dominantPreference != null) {
+                            modifiedEntities[category] = listOf(dominantPreference)
+                            Log.d("Search", "Complemented $category with user preference: $dominantPreference")
+                            updatedQuery += " $dominantPreference"
+                            Log.d("Search", "New query: $updatedQuery")
+                        } else {
+                            Log.d("Search", "No user preference found for $category")
+                        }
+                    }
+                }
             }
-        })
+            Log.d("Search", "Extracted Entities: $extractedEntities")
+            Log.d("Search", "modifiedEntities: $modifiedEntities")
+            Log.d("Search", "NER done. Calling Recommendation API now with query:" +
+                    " $updatedQuery")
+            callRecommendationApi(updatedQuery, modifiedEntities,userPreferences)
+        }
     }
 
     Surface(
@@ -530,7 +554,7 @@ fun RestaurantCard(restaurant: Restaurant, webView: WebView) {
                 restaurant.cuisines?.let { userPreferences.addRestaurantStyle(it)}
                 restaurant.meals?.let { userPreferences.addRestaurantMeals(it) }
                 restaurant.features?.let { userPreferences.addRestaurantFeatures(it) }
-                userPreferences.addRestaurantPrice(restaurant.price)
+                userPreferences.addRestaurantPrice(restaurant.priceCat)
                 webView.evaluateJavascript(
                     """
                     (function() {
@@ -664,7 +688,7 @@ fun InfoRow(icon: ImageVector, label: String, value: String) {
         )
         Spacer(modifier = Modifier.width(2.dp))
         Text(
-            text = "$value",//"$label: $value",
+            text = value,//"$label: $value",
             style = MaterialTheme.typography.bodySmall
         )
     }
@@ -733,4 +757,52 @@ fun copyAssetsToInternalStorage(context: Context, assetDir: String, outputDir: F
         }
     }
 }
+
+fun analyzeUserContext(userPreferences: UserPreferences, category: String): String? {
+    // Define mappings similar to the Python function
+    val categoryKeys = mapOf(
+        "cuisine" to listOf("user_styles", "clicked_restaurant_styles"),
+        "pricing category" to listOf("user_prices", "clicked_restaurant_prices"),
+        "meals" to listOf("user_meals", "clicked_restaurant_meals"),
+        "features" to listOf("user_features", "clicked_restaurant_features"),
+//        "ratings" to listOf("user_ratings", "restaurant_ratings")
+    )
+
+    // Get relevant keys for the missing category
+    val keys = categoryKeys[category]
+    if (keys == null) {
+        Log.e("analyzeUserContext", "Category $category is not mapped!")
+        return null
+    }
+
+    Log.d("analyzeUserContext", "Analyzing user context for category: $category")
+    Log.d("analyzeUserContext", "Keys to check: $keys")
+
+    val combinedList = mutableListOf<String>()
+
+    // Retrieve past preferences from shared preferences
+    keys.forEach { key ->
+        val values = userPreferences.getUserPreferenceList(key)// This should return a List<String>
+        Log.d("analyzeUserContext", "Retrieved values for key [$key]: $values")
+        combinedList.addAll(values)
+    }
+
+    if (combinedList.isEmpty()) {
+        Log.w("analyzeUserContext", "No preferences found for category: $category")
+        return null
+    }
+
+    // Find the most common preference
+    val mostCommonPreference = combinedList.groupingBy { it }
+        .eachCount()
+        .maxByOrNull { it.value }
+        ?.key
+
+    Log.d("analyzeUserContext", "Most common preference for $category: $mostCommonPreference")
+
+    return mostCommonPreference
+}
+
+
+
 

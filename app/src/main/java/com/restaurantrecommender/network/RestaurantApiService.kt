@@ -1,16 +1,19 @@
 package com.restaurantrecommender.network
 
 import com.restaurantrecommender.RecommendationResponse
+import okhttp3.RequestBody
 import retrofit2.Call
 import retrofit2.http.Body
-import retrofit2.http.GET
+import retrofit2.http.Headers
 import retrofit2.http.POST
-import retrofit2.http.Query
 
 interface RestaurantApiService {
+    @Headers("Content-Type: application/json")
     @POST("recommend_new") // Adjust endpoint URL as per your server setup
     fun getRestaurants(
-        @Body jsonPayload: Map<String, String>
+        @Body jsonPayload: RequestBody
     ): Call<RecommendationResponse>
 
+    @POST("extract_entities") // Ensure this matches the API endpoint
+    fun extractEntities(@Body jsonPayload: Map<String, String>): Call<Map<String, List<String>>>
 }

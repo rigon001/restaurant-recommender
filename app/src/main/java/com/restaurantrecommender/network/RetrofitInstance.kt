@@ -1,10 +1,12 @@
 package com.restaurantrecommender.network
 
+import okhttp3.ConnectionPool
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
 object RetrofitInstance {
 
@@ -22,6 +24,10 @@ object RetrofitInstance {
     // Create an OkHttpClient and attach the interceptor
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(apiKeyInterceptor)
+        .connectionPool(ConnectionPool(0, 5, TimeUnit.MINUTES))
+        .connectTimeout(30, TimeUnit.SECONDS)   // Increase connection timeout
+        .readTimeout(30, TimeUnit.SECONDS)      // Increase read timeout
+        .writeTimeout(30, TimeUnit.SECONDS)     // Increase write timeout
         .build()
 
     // Retrofit instance with the custom OkHttpClient
