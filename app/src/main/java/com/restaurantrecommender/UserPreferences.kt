@@ -178,10 +178,6 @@ class UserPreferences(context: Context) {
         }
         set(value) = sharedPreferences.edit().putString(KEY_USER_ID, value).apply()
 
-    var city: String?
-        get() = sharedPreferences.getString(KEY_CITY, null)
-        set(value) = sharedPreferences.edit().putString(KEY_CITY, value).apply()
-
     var searchQuery: List<String>
         get() {
             val json = sharedPreferences.getString(KEY_SEARCH_QUERY, null)

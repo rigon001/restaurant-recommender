@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,17 +34,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -68,14 +63,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -90,8 +83,8 @@ import com.restaurantrecommender.network.RetrofitInstance
 import com.restaurantrecommender.ui.theme.RestaurantRecommenderTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import okhttp3.RequestBody
 import okhttp3.MediaType
+import okhttp3.RequestBody
 import org.json.JSONObject
 import retrofit2.Call
 import retrofit2.Callback
@@ -100,12 +93,9 @@ import java.io.File
 import java.io.FileOutputStream
 
 
-
 data class Restaurant(
-//    val title: String,
     val name: String,
     val url: String,
-//    val textSnippet: String,
     val address: String,
     @SerializedName("phone number")
     val phone: String,
@@ -348,10 +338,6 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
         fun callRecommendationApi(query: String, extractedEntities: Map<String, List<String>>, userPreferences: UserPreferences)
         {
             // Prepare the JSON payload
-//            val jsonPayload = mutableMapOf<String, Any>(
-//                "input" to query,
-//                "entities" to extractedEntities
-//            )
             val jsonPayload = JSONObject().apply {
                 put("input", query) // String input
                 put("entities", JSONObject(extractedEntities)) // Convert extractedEntities to JSON
@@ -452,7 +438,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color.Black//MaterialTheme.colorScheme.onTertiaryContainer //Color.Black
+        color = Color.Black//
     ) {
         Column(modifier = modifier.padding(24.dp)) {
             Text(
@@ -490,7 +476,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
                         .padding(end = 8.dp), // Adds spacing between TextField and Button,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(
-                        onDone = { // No need for explicit cast
+                        onDone = {
                             coroutineScope.launch {
                                 searchRestaurants(
                                     searchQuery,
@@ -733,29 +719,6 @@ fun LocalWebView(webView: WebView) {
             webViewClient = WebViewClient()
         }
     })
-}
-
-fun copyAssetsToInternalStorage(context: Context, assetDir: String, outputDir: File) {
-    val assetManager = context.assets
-    val files = assetManager.list(assetDir) ?: return
-
-    for (file in files) {
-        val assetPath = "$assetDir/$file"
-        val outFile = File(outputDir, file)
-
-        if (assetManager.list(assetPath)?.isNotEmpty() == true) {
-            // Create directories for subfolders
-            outFile.mkdirs()
-            copyAssetsToInternalStorage(context, assetPath, outFile)
-        } else {
-            // Copy file
-            assetManager.open(assetPath).use { input ->
-                FileOutputStream(outFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-    }
 }
 
 fun analyzeUserContext(userPreferences: UserPreferences, category: String): String? {

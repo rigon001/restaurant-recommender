@@ -25,22 +25,13 @@
         <activity
             android:name="com.restaurantrecommender.MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
+            android:label="EatRadar"
             android:theme="@style/Theme.RestaurantRecommender">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
-        <activity
-            android:name="com.restaurantrecommender.MapActivity"
-            android:exported="true"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar">
-        </activity>
-        <activity
-            android:name=".OpenMapActivity"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar">
         </activity>
         <meta-data
             android:name="com.google.android.geo.API_KEY"
