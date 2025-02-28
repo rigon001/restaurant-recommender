@@ -9,7 +9,7 @@ import retrofit2.http.POST
 
 interface RestaurantApiService {
     @Headers("Content-Type: application/json")
-    @POST("recommend_new") // Adjust endpoint URL as per your server setup
+    @POST("recommend") // Adjust endpoint URL as per your server setup
     fun getRestaurants(
         @Body jsonPayload: RequestBody
     ): Call<RecommendationResponse>

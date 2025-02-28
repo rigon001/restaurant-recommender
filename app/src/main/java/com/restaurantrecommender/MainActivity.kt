@@ -18,35 +18,46 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -89,8 +100,10 @@ import org.json.JSONObject
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.io.BufferedReader
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStreamReader
 
 
 data class Restaurant(
@@ -283,13 +296,17 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
     var hasSearched by remember { mutableStateOf(false) }
     // State to control WebView visibility
     var webViewVisible by remember { mutableStateOf(false) }
-
+    // ✅ New States for City Dropdown & Radius Slider
+    val cityOptions = loadCitiesFromCSV(context)
+    var selectedCity by remember { mutableStateOf<String?>(null) }
+    var radiusKm by remember { mutableStateOf(2f) } // Default radius 2km
 
     // Function to make API call
-    fun searchRestaurants(query: String, userPreferences: UserPreferences, context: Context) {
+    fun searchRestaurants(query: String, city: String?, radius: Float, userPreferences: UserPreferences, context: Context) {
         isLoading = true
         hasSearched = true
-
+        // ✅ Get user coordinates
+        val userCoordinates = listOf(userPreferences.latitude, userPreferences.longitude)
         // Show the map WebView after search
         webViewVisible = true
         // Save search query
@@ -337,9 +354,13 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
 
         fun callRecommendationApi(query: String, extractedEntities: Map<String, List<String>>, userPreferences: UserPreferences)
         {
+
             // Prepare the JSON payload
             val jsonPayload = JSONObject().apply {
                 put("input", query) // String input
+                put("location", userCoordinates)
+                put("city", city)
+                put("radius", radius)
                 put("entities", JSONObject(extractedEntities)) // Convert extractedEntities to JSON
             }.toString()
 
@@ -349,8 +370,6 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
             Log.d("Search", "Making API call jsonpayload: $jsonPayload")
             Log.d("Search", "Making API call requestBody: $requestBody")
             val call =  RetrofitInstance.api.getRestaurants(requestBody)
-
-
 
             call.enqueue(object : Callback<RecommendationResponse> {
                 override fun onResponse(call: Call<RecommendationResponse>, response: Response<RecommendationResponse>) {
@@ -363,7 +382,6 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
                         Log.d("Search", "New API call failed: ${response.code()}")
                     }
                 }
-
                 override fun onFailure(call: Call<RecommendationResponse>, t: Throwable) {
                     isLoading = false
                     Log.e("Search", "New API call error: ${t.message}")
@@ -404,18 +422,18 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
 
                 // Try to complement missing categories using user context
                 missingCategories.forEach { category ->
-                    if (category == "location") {
-                        // Handle missing location separately
-                        val userLatitude = userPreferences.latitude
-                        val userLongitude = userPreferences.longitude
-
-                        if (userLatitude != null && userLongitude != null) {
-                            Log.d("Search", "Location is missing in NER response. Using user location: $userLatitude, $userLongitude")
-                            modifiedEntities["location"] = listOf("$userLatitude", "$userLongitude")
-                        } else {
-                            Log.w("Search", "Location is missing in NER response, and no user location is available.")
-                        }
-                    } else {
+//                    if (category == "location") {
+//                        // Handle missing location separately
+//                        val userLatitude = userPreferences.latitude
+//                        val userLongitude = userPreferences.longitude
+//
+//                        if (userLatitude != null && userLongitude != null) {
+//                            Log.d("Search", "Location is missing in NER response. Using user location: $userLatitude, $userLongitude")
+//                            modifiedEntities["location"] = listOf("$userLatitude", "$userLongitude")
+//                        } else {
+//                            Log.w("Search", "Location is missing in NER response, and no user location is available.")
+//                        }
+//                    } else {
                         val dominantPreference = analyzeUserContext(userPreferences, category)
                         if (dominantPreference != null) {
                             modifiedEntities[category] = listOf(dominantPreference)
@@ -425,7 +443,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
                         } else {
                             Log.d("Search", "No user preference found for $category")
                         }
-                    }
+//                    }
                 }
             }
             Log.d("Search", "Extracted Entities: $extractedEntities")
@@ -459,8 +477,87 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             // Map Section ended
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp) // Add spacing between components
+            ) {
+                // ✅ City Selector Dropdown (With Placeholder)
+                var expanded by remember { mutableStateOf(false) }
+
+                Box(
+                    modifier = Modifier
+                        .weight(0.3f) // Controls the dropdown width
+                        .border(1.dp, Color.Gray, RoundedCornerShape(8.dp)) // Add border
+                        .clickable { expanded = true }
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(5.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row (
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ){
+                        Text(
+                            text = selectedCity ?: "Select City", // Placeholder logic
+                            color = Color.Black,//MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown Arrow")
+                    }
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.surface)
+                        ) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .width(150.dp)
+                                .height(250.dp)
+                                .fillMaxWidth()
+                        ) {
+                            items(cityOptions) { city ->
+                                DropdownMenuItem(
+                                    text = { Text(city ?: "No City Selected") },
+                                    onClick = {
+                                        selectedCity = city
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ✅ Radius Slider
+                Column(
+                    modifier = Modifier.weight(0.7f), // Controls slider width
+                ) {
+                    Text(
+                        text = "Or search for restaurants in ${radiusKm.toInt()} km radius",
+                        color = Color.White,
+                        fontSize = 12.sp
+                    )// Show radius value above slider
+                    Slider(
+                        value = radiusKm,
+                        onValueChange = { radiusKm = it },
+                        valueRange = 1f..50f, // Range: 1 to 50 km
+                        steps = 49, // 1 step per km
+                        modifier = Modifier.fillMaxWidth(1f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -480,6 +577,8 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
                             coroutineScope.launch {
                                 searchRestaurants(
                                     searchQuery,
+                                    selectedCity ?: "",
+                                    radiusKm,
                                     userPreferences,
                                     context
                                 )
@@ -493,7 +592,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
                     onClick = {
                         userPreferences.userId = userId
                         coroutineScope.launch {
-                            searchRestaurants(searchQuery, userPreferences, context)
+                            searchRestaurants(searchQuery,selectedCity ?: "", radiusKm, userPreferences, context)
                             delay(500) // Delay for 0.5 seconds (500 milliseconds)
                             keyboardController?.hide()
                         }
@@ -537,7 +636,7 @@ fun RestaurantCard(restaurant: Restaurant, webView: WebView) {
             .fillMaxWidth()
             .clickable {
                 userPreferences.addClickedRestaurant(restaurant.name)
-                restaurant.cuisines?.let { userPreferences.addRestaurantStyle(it)}
+                restaurant.cuisines?.let { userPreferences.addRestaurantStyle(it) }
                 restaurant.meals?.let { userPreferences.addRestaurantMeals(it) }
                 restaurant.features?.let { userPreferences.addRestaurantFeatures(it) }
                 userPreferences.addRestaurantPrice(restaurant.priceCat)
@@ -634,7 +733,9 @@ fun FlowRow(
     content: @Composable () -> Unit
 ) {
     androidx.compose.foundation.layout.FlowRow(
-        modifier = modifier.fillMaxWidth().padding(padding),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(padding),
         horizontalArrangement = Arrangement.spacedBy(horizontalSpacing),
         verticalArrangement = Arrangement.spacedBy(verticalSpacing)
     ) {
@@ -764,6 +865,23 @@ fun analyzeUserContext(userPreferences: UserPreferences, category: String): Stri
     Log.d("analyzeUserContext", "Most common preference for $category: $mostCommonPreference")
 
     return mostCommonPreference
+}
+
+
+fun loadCitiesFromCSV(context: Context): List<String?> {
+    val cities : MutableList<String?> = mutableListOf(null)
+//    cities.add(null)
+    try {
+        val inputStream = context.resources.openRawResource(R.raw.cities)
+        val reader = BufferedReader(InputStreamReader(inputStream))
+        reader.forEachLine { line ->
+            cities.add(line.trim()) // Trim spaces and add each city
+        }
+        reader.close()
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    return cities
 }
 
 

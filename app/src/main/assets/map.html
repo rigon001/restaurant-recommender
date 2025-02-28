@@ -51,54 +51,48 @@
     // Variable to store the current routing control
     var currentRoutingControl = null;
 
-    // Function to geocode an address and add a marker
-    function addMarkers(restaurants) {
-        // Clear existing markers
-        markersLayerGroup.clearLayers();
+    // Define a global variable to store the user location marker
+    var userLocationMarker = null;
+     var userIcon = L.icon({
+        iconUrl: 'https://img.icons8.com/?size=100&id=3781&format=png&color=FA5252',//'https://cdn-icons-png.flaticon.com/512/684/684908.png', // Custom user location icon
+        iconSize: [40, 40], // Icon size
+        iconAnchor: [20, 40], // Anchor point
+        popupAnchor: [0, -35] // Adjust popup position
+    });
+    // ✅ Get user's location from Android
+    var storedLatitude = null;
+    var storedLongitude = null;
 
-        // Clear previous route when new markers are added
-        clearRoute();
+    // Function to update user location from Android WebAppInterface
+    function updateUserLocation() {
+        storedLatitude = parseFloat(Android.getLatitude());
+        storedLongitude = parseFloat(Android.getLongitude());
+    }
 
-        // Create a new marker cluster group
-        var markers = L.markerClusterGroup();
-
-        // Collect all addresses for batch geocoding
-        var addresses = restaurants.map(restaurant => restaurant.address);
-
-        restaurants.forEach(function(restaurant) {
-            // Construct the Nominatim API URL for geocoding
-            var geocodeUrl = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(restaurant.address);
-
-            // Fetch the geocoded data
-            fetch(geocodeUrl)
-                .then(response => response.json())
-                .then(data => {
-                    if (data && data.length > 0) {
-                        // Extract latitude and longitude from the geocoding response
-                        var lat = parseFloat(data[0].lat);
-                        var lon = parseFloat(data[0].lon);
-
-                        // Add a marker to the map at the geocoded location
-                        var marker = L.marker([lat, lon]);
-                        marker.bindPopup('<b>' + restaurant.name + '</b><br>' + restaurant.address
-                        +'<br><button onclick="showDirections(' + lat + ', ' + lon + ')">Directions</button>');
-                        markers.addLayer(marker);
-                    } else {
-                        console.error('Geocoding failed: No results found for address ' + restaurant.address);
-                    }
-                })
-                .catch(error => {
-                    console.error('Geocoding error for address ' + restaurant.address + ':', error);
-                });
-        });
-        // Add the cluster group to the map
-        map.addLayer(markers);
-        markersLayerGroup = markers;
+    // ✅ Function to add user location (separately from clustering)
+    function addUserLocationMarker() {
+        if (!isNaN(storedLatitude) && !isNaN(storedLongitude)) {
+            if (!userLocationMarker) {
+                console.log("User location marker is not there, adding it...");
+                userLocationMarker = L.marker([storedLatitude, storedLongitude], { icon: userIcon })
+                    .bindPopup("<b>You are here</b>")
+                    .addTo(map) // ✅ Add it directly to the map (NOT the cluster group)
+                    .openPopup(); // ✅ Keep popup open
+            } else {
+                console.log("User location marker already exists, updating position...");
+                userLocationMarker.setLatLng([storedLatitude, storedLongitude]);
+            }
+        } else {
+            console.warn("User location is not available.");
+        }
     }
 
     // Function for New API restaurants (already have lat/lon)
-    function addMarkersWithCoordinates(restaurants) {
+    function addMarkersWithCoordinates(restaurants, ) {
         console.log("In addMarkersWithCoordinates");
+
+         // ✅ Update user location only once
+        updateUserLocation();
 
         // Clear existing markers before adding new ones
         markersLayerGroup.clearLayers();
@@ -106,8 +100,16 @@
         // Clear previous route when new markers are added
         clearRoute();
 
+        // ✅ Ensure user location is separate (call this function)
+        addUserLocationMarker();
+
         // Create a new marker cluster group
-        var markers = L.markerClusterGroup();
+        var markers = L.markerClusterGroup({
+            disableClusteringAtZoom: 15, // Stops clustering at zoom level 15+
+            maxClusterRadius: 60, // Distance (in pixels) before markers are grouped
+            animateAddingMarkers: true, // Smooth marker animations
+            removeOutsideVisibleBounds: true // Performance optimization
+        });
 
         restaurants.forEach(function(restaurant) {
             if (restaurant.latitude !== 0.0 && restaurant.longitude !== 0.0) {
@@ -133,33 +135,43 @@
 
     // Function to show directions
     function showDirections(lat, lon) {
+        // ✅ Ensure user location is up-to-date
+        updateUserLocation();
+
         // Clear previous route
         clearRoute();
 
-        // Get stored location from Android using WebAppInterface
-        var storedLatitude = Android.getLatitude();//46.056946
-        var storedLongitude = Android.getLongitude(); //14.505751
+        if (!isNaN(storedLatitude) && !isNaN(storedLongitude)) {
+            // ✅ Update user marker position instead of adding a new one
+            if (userLocationMarker) {
+                userLocationMarker.setLatLng([storedLatitude, storedLongitude]);
+            }
 
-        if (storedLatitude && storedLongitude) {
-            var startLat = parseFloat(storedLatitude);
-            var startLon = parseFloat(storedLongitude);
-
-            // Create a routing control
+            // ✅ Create a routing control for navigation
             currentRoutingControl = L.Routing.control({
                 waypoints: [
-                    L.latLng(startLat, startLon),
+                    L.latLng(storedLatitude, storedLongitude),
                     L.latLng(lat, lon)
                 ],
-                routeWhileDragging: true
+                routeWhileDragging: true,
+                createMarker: function(i, waypoint, n) {
+                    // ✅ Only add a marker for the destination (i == 1 means it's the second point)
+                    if (i === 1) {
+                        return L.marker(waypoint.latLng);
+                    }
+                    return null; // ✅ Do not add a marker for the user's location
+                } // ✅ Prevents Leaflet from adding duplicate markers
             }).addTo(map);
 
-            // After showing the route, redirect back to user location
-            setTimeout(() => {
-                map.flyTo([startLat, startLon], 16, {
-                    animate: true,
-                    duration: 1.5 // Smooth transition back in 2 seconds
-                });
-            }, 1000);
+            // ✅ Wait for route calculation, then adjust map to fit the full route
+            currentRoutingControl.on('routesfound', function(e) {
+                var route = e.routes[0]; // Get the first route
+                var routeCoordinates = route.coordinates; // Get all coordinates of the route
+                var bounds = L.latLngBounds(routeCoordinates); // Create bounds from route coordinates
+
+                // ✅ Fit the map view to include the full route
+                map.fitBounds(bounds, { padding: [10, 10] });
+            });
 
         } else {
             alert('Could not get your stored location.');
