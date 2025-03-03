@@ -299,7 +299,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
     // ✅ New States for City Dropdown & Radius Slider
     val cityOptions = loadCitiesFromCSV(context)
     var selectedCity by remember { mutableStateOf<String?>(null) }
-    var radiusKm by remember { mutableStateOf(1f) } // Default radius 1km
+    var radiusKm by remember { mutableStateOf(1f) } // Default radius 1t km
 
     // Function to make API call
     fun searchRestaurants(query: String, city: String?, radius: Float, userPreferences: UserPreferences, context: Context) {
