@@ -227,6 +227,9 @@ class MainActivity : ComponentActivity() {
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
 
+        // Capture start time right before loadUrl
+        val mapLoadStart = System.currentTimeMillis()
+
         // Enable fullscreen functionality
         webView.webChromeClient = object : WebChromeClient() {
             private var customView: View? = null
@@ -268,6 +271,12 @@ class MainActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                 return false // Ensure navigation stays within the WebView
             }
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                val mapLoadEnd = System.currentTimeMillis()
+                val duration = mapLoadEnd - mapLoadStart
+                Log.d("Performance", "Map load time: $duration ms")
+            }
         }
 
         webView.loadUrl("file:///android_asset/map.html")
@@ -303,6 +312,9 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
 
     // Function to make API call
     fun searchRestaurants(query: String, city: String?, radius: Float, userPreferences: UserPreferences, context: Context) {
+        // Start measuring search time
+        val overallStart = System.currentTimeMillis()
+
         isLoading = true
         hasSearched = true
         // ✅ Get user coordinates
@@ -352,9 +364,8 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
             })
         }
 
-        fun callRecommendationApi(query: String, extractedEntities: Map<String, List<String>>, userPreferences: UserPreferences)
+        fun callRecommendationApi(query: String, extractedEntities: Map<String, List<String>>, userPreferences: UserPreferences, onComplete: () -> Unit)
         {
-
             // Prepare the JSON payload
             val jsonPayload = JSONObject().apply {
                 put("input", query) // String input
@@ -381,18 +392,24 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
                     } else {
                         Log.d("Search", "New API call failed: ${response.code()}")
                     }
+                    // IMPORTANT: signal completion
+                    onComplete()
                 }
                 override fun onFailure(call: Call<RecommendationResponse>, t: Throwable) {
                     isLoading = false
                     Log.e("Search", "New API call error: ${t.message}")
+                    onComplete()
                 }
             })
         }
 
         Log.d("Search", "Calling NER API...")
+        // Example: measure how long until NER completes
+        val startTimeNer = System.currentTimeMillis()
         callNERApi(query) { extractedEntities ->
             Log.d("Search", "Extracted Entities: $extractedEntities")
-
+            val endTimeNer = System.currentTimeMillis()
+            Log.d("Performance", "NER API call took: ${endTimeNer - startTimeNer} ms")
             val missingCategories = mutableListOf<String>()
             // ✅ Convert extractedEntities to a MutableMap so we can modify it
             val modifiedEntities: MutableMap<String, List<String>> = extractedEntities.mapValues { it.value as List<String> }.toMutableMap()
@@ -450,7 +467,19 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
             Log.d("Search", "modifiedEntities: $modifiedEntities")
             Log.d("Search", "NER done. Calling Recommendation API now with query:" +
                     " $updatedQuery")
-            callRecommendationApi(updatedQuery, modifiedEntities,userPreferences)
+            // Then you call your recommendation API
+            val startTimeReco = System.currentTimeMillis()
+            callRecommendationApi(updatedQuery, modifiedEntities,userPreferences){
+                // Recommendation API complete
+                val endTimeReco = System.currentTimeMillis()
+                val recoDuration = endTimeReco - startTimeReco
+                Log.d("Performance", "Recommendation API call took: $recoDuration ms")
+
+                // Finally, measure total time from start of search to final results
+                val overallEnd = System.currentTimeMillis()
+                val totalDuration = overallEnd - overallStart
+                Log.d("Performance", "Total time from search to displayed results: $totalDuration ms")
+            }
         }
     }
 
@@ -506,7 +535,7 @@ fun ContentWithTitle(modifier: Modifier = Modifier, resources: Resources,  webVi
                     ){
                         Text(
                             text = selectedCity ?: "Select City", // Placeholder logic
-                            color = Color.Black,//MaterialTheme.colorScheme.primary,
+                            color = Color.White,//MaterialTheme.colorScheme.primary,
                             modifier = Modifier.weight(1f)
                         )
                         Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Dropdown Arrow")
@@ -783,6 +812,7 @@ fun InfoRow(icon: ImageVector, label: String, value: String) {
 
 
 fun loadMapWithMarkers(webView: WebView, restaurants: List<Restaurant>) {
+    val startTime = System.currentTimeMillis()
     Log.d("Search","loading Map With Markers.")
     val simplifiedRestaurants = restaurants.map {
         mapOf(
@@ -802,6 +832,9 @@ fun loadMapWithMarkers(webView: WebView, restaurants: List<Restaurant>) {
             fitBoundsToMarkers();
         """.trimIndent(), null)
     }
+    // End of function timing
+    val endTime = System.currentTimeMillis()
+    Log.d("Performance","loadMapWithMarkers() took: ${endTime - startTime} ms")
     Log.d("Search","loading Map With Markers ended.")
 }
 
